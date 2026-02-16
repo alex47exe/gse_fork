@@ -72,6 +72,13 @@ Default font: "Good game! □□"
 Emoji font:   "Good game! 😊👍"
 ```
 
+## Noto Fonts for Emoji
+
+For comprehensive emoji support using open-source fonts, see:
+- **[Noto Fonts Guide](NOTO_FONTS_GUIDE.md)** - Complete guide for Noto fonts
+- **Noto Color Emoji** - Recommended: `NotoColorEmoji.ttf` (~10 MB)
+- **Download:** https://github.com/googlefonts/noto-emoji/releases
+
 ## Summary
 
 - ✅ **Emoji Unicode ranges**: Included by default
@@ -82,3 +89,11 @@ Emoji font:   "Good game! 😊👍"
 - ✅ **Text files**: Emoji from files render if font supports them
 
 **For the best emoji experience, configure an emoji font using the `font_override` setting!**
+
+### Recommended Fonts
+
+- **Windows:** Segoe UI Emoji (`seguiemj.ttf`)
+- **Linux/Cross-platform:** Noto Color Emoji (`NotoColorEmoji.ttf`)
+- **macOS:** Apple Color Emoji (`Apple Color Emoji.ttc`)
+
+See [Noto Fonts Guide](NOTO_FONTS_GUIDE.md) for comprehensive language and emoji support options.
