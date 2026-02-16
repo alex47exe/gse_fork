@@ -160,18 +160,9 @@ class Steam_Overlay
     // changed only when overlay is shown/hidden, true means overlay is shown
     std::atomic_uint32_t obscure_cursor_requests = 0;
     
-    // Custom deleter for renderer hook - properly calls destructor and frees memory
-    struct RendererDeleter {
-        void operator()(InGameOverlay::RendererHook_t* ptr) const {
-            if (ptr) {
-                // Properly delete the object instead of just calling destructor
-                delete ptr;
-            }
-        }
-    };
-    
     std::future<InGameOverlay::RendererHook_t *> future_renderer{};
-    std::unique_ptr<InGameOverlay::RendererHook_t, RendererDeleter> _renderer{};
+    // Use unique_ptr for RAII-based cleanup - ensures proper destructor call and memory deallocation
+    std::unique_ptr<InGameOverlay::RendererHook_t> _renderer{};
 
     common_helpers::KillableWorker renderer_detector_delay_thread{};
     common_helpers::KillableWorker renderer_hook_init_thread{};
