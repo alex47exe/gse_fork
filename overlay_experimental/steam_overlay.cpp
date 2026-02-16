@@ -202,6 +202,8 @@ bool Steam_Overlay::renderer_hook_proc()
 
     // do a one time initialization
     // std::lock_guard<std::recursive_mutex> lock(overlay_mutex);
+    // Take ownership of the renderer pointer returned by the future
+    // The future transfers ownership and no longer holds the pointer after get()
     _renderer.reset(future_renderer.get());
     if (!_renderer) { // is this even possible?
         PRINT_DEBUG("renderer hook was null!");
@@ -458,21 +460,24 @@ void Steam_Overlay::allow_renderer_frame_processing(bool state, bool cleaning_up
 {
     // this is very important internally it calls the necessary fuctions
     // to properly update ImGui window size on the next overlay_render_proc() call
-
-    if (!_renderer) return;
+    // Note: callers must hold overlay_mutex
 
     if (state) {
         auto new_val = ++renderer_frame_processing_requests;
         if (new_val == 1) { // only take an action on first request
             // allow internal frmae processing
-            _renderer->HideOverlayInputs(false);
+            if (_renderer) {
+                _renderer->HideOverlayInputs(false);
+            }
             PRINT_DEBUG("enabled frame processing (count=%u)", new_val);
         }
     } else {
         if (renderer_frame_processing_requests > 0) {
             auto new_val = --renderer_frame_processing_requests;
             if (!new_val || cleaning_up_overlay) { // only take an action when the requests reach 0 or by force
-                _renderer->HideOverlayInputs(true);
+                if (_renderer) {
+                    _renderer->HideOverlayInputs(true);
+                }
                 PRINT_DEBUG("disabled frame processing (count=%u, force=%i)", new_val, (int)cleaning_up_overlay);
             }
         }
@@ -480,7 +485,7 @@ void Steam_Overlay::allow_renderer_frame_processing(bool state, bool cleaning_up
 }
 
 void Steam_Overlay::obscure_game_input(bool state) {
-    if (!_renderer) return;
+    // Note: callers must hold overlay_mutex
 
     if (state) {
         auto new_val = ++obscure_cursor_requests;
@@ -494,7 +499,9 @@ void Steam_Overlay::obscure_game_input(bool state) {
             io.WantCaptureKeyboard = state;
 
             // clip the cursor
-            _renderer->HideAppInputs(true);
+            if (_renderer) {
+                _renderer->HideAppInputs(true);
+            }
             PRINT_DEBUG("obscured app input (count=%u)", new_val);
         }
     } else {
@@ -510,7 +517,9 @@ void Steam_Overlay::obscure_game_input(bool state) {
                 io.WantCaptureKeyboard = state;
                 
                 // restore the old cursor
-                _renderer->HideAppInputs(false);
+                if (_renderer) {
+                    _renderer->HideAppInputs(false);
+                }
                 PRINT_DEBUG("restored app input (count=%u)", new_val);
             }
         }
@@ -1264,7 +1273,7 @@ bool Steam_Overlay::try_load_ach_icon(Overlay_Achievement &ach, bool achieved, b
     if (!settings->overlay_upload_achs_icons_to_gpu) return false; // don't upload anything to the GPU
 
     auto &icon_rsrc = achieved ? ach.icon : ach.icon_gray;
-    if (!icon_rsrc) return false; // icon resource not created yet
+    if (!icon_rsrc) return false; // Guard against null icon resource
     if (icon_rsrc->GetResourceId() != 0) return true;
 
     // icons needs to be loaded, but we're not allowed
