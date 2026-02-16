@@ -233,7 +233,9 @@ void Steam_Overlay::create_fonts()
 {
     PRINT_DEBUG_ENTRY();
 
-    // Early return if font atlas is already built to prevent rebuilds
+    // Early return if font atlas is already built to prevent rebuilds.
+    // This function is designed to be called only once during overlay initialization.
+    // Font settings (size, spacing, etc.) are loaded from settings at startup and cannot be changed at runtime.
     if (fonts_atlas.IsBuilt()) {
         PRINT_DEBUG("fonts atlas already built, skipping recreation");
         return;
