@@ -384,12 +384,10 @@ void Steam_Overlay::load_achievements_data()
         }
     } // Release global_mutex here
 
-    // Store achievements first
-    achievements = std::move(temp_achievements);
-
-    // Create renderer resources without holding global_mutex to avoid deadlock
+    // Create renderer resources without holding any mutex to avoid deadlock
+    // These resources are created in local temp_achievements before it's moved to the shared achievements vector
     if (_renderer) {
-        for (auto &ach : achievements) {
+        for (auto &ach : temp_achievements) {
             if (ach.icon == nullptr) {
                 ach.icon = _renderer->CreateResource();
             }
@@ -397,6 +395,12 @@ void Steam_Overlay::load_achievements_data()
                 ach.icon_gray = _renderer->CreateResource();
             }
         }
+    }
+
+    // Now protect the assignment to the shared achievements vector with overlay_mutex
+    {
+        std::lock_guard<std::recursive_mutex> lock(overlay_mutex);
+        achievements = std::move(temp_achievements);
     }
 
     PRINT_DEBUG("count=%zu, loaded=%zu", achievements.size(), achievements.size());
