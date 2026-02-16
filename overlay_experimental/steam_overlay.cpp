@@ -233,6 +233,12 @@ void Steam_Overlay::create_fonts()
 {
     PRINT_DEBUG_ENTRY();
 
+    // Early return if font atlas is already built to prevent rebuilds
+    if (fonts_atlas.IsBuilt()) {
+        PRINT_DEBUG("fonts atlas already built, skipping recreation");
+        return;
+    }
+
     // disable rounding the texture height to the next power of two
     // see this: https://github.com/ocornut/imgui/blob/master/docs/FONTS.md#4-font-atlas-texture-fails-to-upload-to-gpu
     fonts_atlas.Flags |= ImFontAtlasFlags_NoPowerOfTwoHeight;
@@ -296,7 +302,16 @@ void Steam_Overlay::create_fonts()
         font_builder.AddText(translationPlaytimeCheckbox[i]);
         font_builder.AddText(translationPlaytimeDisplay[i]);
     }
-    font_builder.AddRanges(fonts_atlas.GetGlyphRangesDefault());
+    
+    // Pre-load ALL language glyph ranges upfront for instant language switching
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesDefault());      // Latin + common symbols
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesJapanese());     // Hiragana, Katakana, Kanji
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesKorean());       // Hangul
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesChineseFull());  // Simplified + Traditional Chinese
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesCyrillic());     // Russian, Ukrainian, etc.
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesGreek());        // Greek alphabet
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesThai());         // Thai script
+    font_builder.AddRanges(fonts_atlas.GetGlyphRangesVietnamese());   // Vietnamese with diacritics
 
     font_builder.BuildRanges(&ranges);
     font_cfg.GlyphRanges = ranges.Data;
