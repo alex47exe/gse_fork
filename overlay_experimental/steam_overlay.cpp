@@ -320,10 +320,46 @@ void Steam_Overlay::create_fonts()
     font_builder.AddRanges(fonts_atlas.GetGlyphRangesThai());         // Thai script
     font_builder.AddRanges(fonts_atlas.GetGlyphRangesVietnamese());   // Vietnamese with diacritics
     
-    // Add emoji support - Windows 11 25H2 (Emoji 16.0) Unicode ranges
-    // Note: Emoji rendering depends on font support. Unifont has limited emoji coverage.
-    // For full color emoji, consider using a dedicated emoji font (e.g., Noto Color Emoji, Segoe UI Emoji)
-    // Emoji codepoints > 0xFFFF require IMGUI_USE_WCHAR32 to be defined
+    // ========================================================================
+    // EMOJI SUPPORT - Windows 11 25H2 (Emoji 16.0) Unicode ranges
+    // ========================================================================
+    // 
+    // Q: Do I need a special font for emojis?
+    // A: YES - Emoji rendering requires a font that contains emoji glyphs.
+    //
+    // Q: How will emojis be displayed if read from a text file?
+    // A: It depends on which font is loaded:
+    //
+    //    1. DEFAULT (Unifont - built-in):
+    //       - Basic symbols (☀️ ⭐ ✈️) may render as simple monochrome glyphs
+    //       - Complex emoji (😀 🎨 🦄) will likely show as □ (missing glyph boxes)
+    //       - Unifont has limited emoji coverage, designed for broad Unicode support
+    //
+    //    2. CUSTOM EMOJI FONT (user-provided via font_override setting):
+    //       - Full emoji rendering with all glyphs
+    //       - Recommended fonts: Noto Color Emoji, Segoe UI Emoji, Apple Color Emoji
+    //       - Configure via: overlay_appearance.font_override = "path/to/emoji-font.ttf"
+    //
+    //    3. EMOJI FROM TEXT FILES:
+    //       - When text files (chat, usernames, etc.) contain emoji, they will be:
+    //         * Rendered if the loaded font has the glyph
+    //         * Shown as □ if the font doesn't have the glyph
+    //       - The emoji Unicode ranges below ensure the font atlas ATTEMPTS to load
+    //         emoji glyphs from whatever font is loaded
+    //
+    // TECHNICAL NOTES:
+    // - Standard ImGui renders monochrome glyphs only (no color emoji)
+    // - Color emoji requires FreeType rasterizer with IMGUI_USE_WCHAR32 defined
+    // - Emoji codepoints > 0xFFFF (most emoji) need 32-bit wchar support
+    // - These ranges add ~1-2MB to font atlas if font has emoji coverage
+    // - If font lacks emoji, ranges have no memory impact (no glyphs to rasterize)
+    //
+    // RECOMMENDATION FOR FULL EMOJI SUPPORT:
+    // Create overlay_appearance.txt in steam_settings folder with:
+    //   font_override=C:/Windows/Fonts/seguiemj.ttf  (Windows)
+    //   font_override=/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf  (Linux)
+    //   font_override=/System/Library/Fonts/Apple Color Emoji.ttc  (macOS)
+    //
     static const ImWchar emoji_ranges[] = {
         0x2600, 0x26FF,  // Miscellaneous Symbols (weather, zodiac, etc.)
         0x2700, 0x27BF,  // Dingbats (scissors, hands, stars, etc.)
@@ -335,7 +371,7 @@ void Steam_Overlay::create_fonts()
         0x1F800, 0x1F8FF,  // Supplemental Arrows-C
         0x1F900, 0x1F9FF,  // Supplemental Symbols and Pictographs
         0x1FA00, 0x1FA6F,  // Chess Symbols
-        0x1FA70, 0x1FAFF,  // Symbols and Pictographs Extended-A
+        0x1FA70, 0x1FAFF,  // Symbols and Pictographs Extended-A (includes new Emoji 16.0)
         0,  // Terminator
     };
     font_builder.AddRanges(emoji_ranges);
