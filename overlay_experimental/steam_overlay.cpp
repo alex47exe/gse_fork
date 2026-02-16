@@ -598,8 +598,12 @@ bool Steam_Overlay::submit_notification(
     notif.frd = frd;
     if (ach) notif.ach = *ach;
     
+    // only request frame processing if this is the first notification
+    bool was_empty = notifications.empty();
     notifications.emplace_back(notif);
-    allow_renderer_frame_processing(true);
+    if (was_empty) {
+        allow_renderer_frame_processing(true);
+    }
     // uncomment this block to obscure cursor input and steal focus for these specific notifications
     switch (type) {
         // we want to steal focus for these ones
@@ -1145,10 +1149,10 @@ void Steam_Overlay::build_notifications(float width, float height)
     ImGui::PopFont();
 
     // erase all notifications whose visible time exceeded the max
+    size_t notifications_before = notifications.size();
     notifications.erase(std::remove_if(notifications.begin(), notifications.end(), [this](const Notification &item) {
         if (item.expired) {
             PRINT_DEBUG("removing a notification");
-            allow_renderer_frame_processing(false);
             // uncomment this block to restore app input focus
             switch ((notification_type)item.type) {
                 // we want to restore focus for these ones
@@ -1174,6 +1178,11 @@ void Steam_Overlay::build_notifications(float width, float height)
         
         return false;
     }), notifications.end());
+    
+    // only disable frame processing if all notifications have been removed
+    if (notifications_before > 0 && notifications.empty()) {
+        allow_renderer_frame_processing(false);
+    }
 
     if (!friend_actions_temp.empty()) {
         while (!friend_actions_temp.empty()) {
