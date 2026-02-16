@@ -319,6 +319,26 @@ void Steam_Overlay::create_fonts()
     font_builder.AddRanges(fonts_atlas.GetGlyphRangesGreek());        // Greek alphabet
     font_builder.AddRanges(fonts_atlas.GetGlyphRangesThai());         // Thai script
     font_builder.AddRanges(fonts_atlas.GetGlyphRangesVietnamese());   // Vietnamese with diacritics
+    
+    // Add emoji support - Windows 11 25H2 (Emoji 16.0) Unicode ranges
+    // Note: Emoji rendering depends on font support. Unifont has limited emoji coverage.
+    // For full color emoji, consider using a dedicated emoji font (e.g., Noto Color Emoji, Segoe UI Emoji)
+    // Emoji codepoints > 0xFFFF require IMGUI_USE_WCHAR32 to be defined
+    static const ImWchar emoji_ranges[] = {
+        0x2600, 0x26FF,  // Miscellaneous Symbols (weather, zodiac, etc.)
+        0x2700, 0x27BF,  // Dingbats (scissors, hands, stars, etc.)
+        0x1F300, 0x1F5FF,  // Miscellaneous Symbols and Pictographs
+        0x1F600, 0x1F64F,  // Emoticons (smileys, gestures)
+        0x1F680, 0x1F6FF,  // Transport and Map Symbols
+        0x1F700, 0x1F77F,  // Alchemical Symbols
+        0x1F780, 0x1F7FF,  // Geometric Shapes Extended
+        0x1F800, 0x1F8FF,  // Supplemental Arrows-C
+        0x1F900, 0x1F9FF,  // Supplemental Symbols and Pictographs
+        0x1FA00, 0x1FA6F,  // Chess Symbols
+        0x1FA70, 0x1FAFF,  // Symbols and Pictographs Extended-A
+        0,  // Terminator
+    };
+    font_builder.AddRanges(emoji_ranges);
 
     font_builder.BuildRanges(&ranges);
     font_cfg.GlyphRanges = ranges.Data;
