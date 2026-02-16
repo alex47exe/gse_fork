@@ -348,6 +348,12 @@ void Steam_Overlay::load_achievements_data()
 {
     PRINT_DEBUG_ENTRY();
     
+    // Early exit if overlay is being torn down
+    if (!setup_overlay_called) {
+        PRINT_DEBUG("setup_overlay_called is false, aborting achievement loading");
+        return;
+    }
+    
     // Collect achievement data while holding global_mutex
     std::vector<Overlay_Achievement> temp_achievements;
     uint32 achievements_num = 0;
@@ -357,12 +363,6 @@ void Steam_Overlay::load_achievements_data()
         Steam_User_Stats* steamUserStats = get_steam_client()->steam_user_stats;
         achievements_num = steamUserStats->GetNumAchievements();
         for (uint32 i = 0; i < achievements_num; ++i) {
-            if (!setup_overlay_called) {
-                // Early exit if overlay is being torn down
-                PRINT_DEBUG("setup_overlay_called is false, aborting achievement loading");
-                return;
-            }
-
             Overlay_Achievement ach{};
             ach.name = steamUserStats->GetAchievementName(i);
             ach.title = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "name");
@@ -391,22 +391,24 @@ void Steam_Overlay::load_achievements_data()
         }
     } // Release global_mutex here
 
-    // Create renderer resources without holding any mutex to avoid deadlock
-    // These resources are created in local temp_achievements before it's moved to the shared achievements vector
-    if (_renderer) {
-        for (auto &ach : temp_achievements) {
-            if (ach.icon == nullptr) {
-                ach.icon = _renderer->CreateResource();
-            }
-            if (ach.icon_gray == nullptr) {
-                ach.icon_gray = _renderer->CreateResource();
-            }
-        }
-    }
-
-    // Now protect the assignment to the shared achievements vector with overlay_mutex
+    // Create renderer resources and assign to achievements vector
+    // Both protected by overlay_mutex to prevent race conditions
     {
         std::lock_guard<std::recursive_mutex> lock(overlay_mutex);
+        
+        // Create renderer resources if available
+        if (_renderer) {
+            for (auto &ach : temp_achievements) {
+                if (ach.icon == nullptr) {
+                    ach.icon = _renderer->CreateResource();
+                }
+                if (ach.icon_gray == nullptr) {
+                    ach.icon_gray = _renderer->CreateResource();
+                }
+            }
+        }
+        
+        // Assign to the shared achievements vector
         achievements = std::move(temp_achievements);
     }
 
