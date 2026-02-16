@@ -183,7 +183,7 @@ class Steam_Overlay
     std::atomic<bool> setup_overlay_called = false;
     
     // frame rate limiting for overlay rendering
-    std::chrono::steady_clock::time_point last_render_time{};
+    std::atomic<uint64_t> last_render_time_ms{0}; // Use atomic for thread-safe access
     std::atomic<bool> needs_redraw = true;
 
     std::map<std::string, std::vector<char>> wav_files{
@@ -213,7 +213,7 @@ class Steam_Overlay
     void build_friend_window(Friend const& frd, friend_window_state &state);
     std::chrono::milliseconds get_notification_duration(notification_type type);
     // Notifications like achievements, chat and invitations
-    void set_next_notification_pos(std::pair<float, float> scrn_size, std::chrono::milliseconds elapsed, std::chrono::milliseconds duration, const Notification &noti, struct NotificationsCoords &coords);
+    void set_next_notification_pos(std::pair<float, float> scrn_size, std::chrono::milliseconds elapsed, std::chrono::milliseconds duration, Notification &noti, struct NotificationsCoords &coords);
     // factor controlling the amount of sliding during the animation, 0 means disabled
     float animate_factor(std::chrono::milliseconds elapsed, std::chrono::milliseconds duration);
     void add_ach_progressbar(const Overlay_Achievement &ach);

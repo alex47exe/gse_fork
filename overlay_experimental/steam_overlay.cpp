@@ -612,7 +612,7 @@ bool Steam_Overlay::submit_notification(
     if (ach) notif.ach = *ach;
     
     notifications.emplace_back(notif);
-    needs_redraw = true; // Mark that we need to redraw for new notification
+    needs_redraw.store(true, std::memory_order_release); // Mark that we need to redraw for new notification
     allow_renderer_frame_processing(true);
     // uncomment this block to obscure cursor input and steal focus for these specific notifications
     switch (type) {
@@ -856,7 +856,7 @@ std::chrono::milliseconds Steam_Overlay::get_notification_duration(notification_
 }
 
 // set the position of the next notification
-void Steam_Overlay::set_next_notification_pos(std::pair<float, float> scrn_size, std::chrono::milliseconds elapsed, std::chrono::milliseconds duration, const Notification &noti, struct NotificationsCoords &coords)
+void Steam_Overlay::set_next_notification_pos(std::pair<float, float> scrn_size, std::chrono::milliseconds elapsed, std::chrono::milliseconds duration, Notification &noti, struct NotificationsCoords &coords)
 {
     const float scrn_width = scrn_size.first;
     const float scrn_height = scrn_size.second;
@@ -926,9 +926,9 @@ void Steam_Overlay::set_next_notification_pos(std::pair<float, float> scrn_size,
         // add some y padding for niceness
         noti_height += 2 * global_style.WindowPadding.y;
         
-        // Cache the calculated height (const_cast is needed since noti is const)
-        const_cast<Notification&>(noti).cached_height = noti_height;
-        const_cast<Notification&>(noti).layout_dirty = false;
+        // Cache the calculated height
+        noti.cached_height = noti_height;
+        noti.layout_dirty = false;
     }
     
     // get the required position for animation
@@ -1198,7 +1198,7 @@ void Steam_Overlay::build_notifications(float width, float height)
     
     // If notifications are animating, mark that we need continuous redraws
     if (has_animating_notifications) {
-        needs_redraw = true;
+        needs_redraw.store(true, std::memory_order_release);
     }
 
     // erase all notifications whose visible time exceeded the max
@@ -1326,13 +1326,19 @@ void Steam_Overlay::overlay_render_proc()
     }
     
     // Phase 2: Frame rate limiting - skip render if within frame budget and nothing changed
-    if (settings->overlay_max_fps > 0 && !needs_redraw) {
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_render_time);
-        auto frame_budget = std::chrono::milliseconds(1000 / settings->overlay_max_fps);
-        
-        if (elapsed < frame_budget) {
-            return; // Skip this frame to maintain target FPS
+    if (settings->overlay_max_fps > 0) {
+        bool should_redraw = needs_redraw.load(std::memory_order_acquire);
+        if (!should_redraw) {
+            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
+            auto last_ms = last_render_time_ms.load(std::memory_order_acquire);
+            auto elapsed_ms = now_ms - last_ms;
+            auto frame_budget_ms = 1000 / settings->overlay_max_fps;
+            
+            if (elapsed_ms < frame_budget_ms) {
+                return; // Skip this frame to maintain target FPS
+            }
         }
     }
     
@@ -1365,16 +1371,20 @@ void Steam_Overlay::overlay_render_proc()
         stats.render_stats(current_language);
     }
 
-    // Phase 5: Background icon loading (moved outside of main render critical path)
-    // Only load icons when not actively rendering to avoid frame drops
+    // Phase 5: Background icon loading (deferred to non-render phase)
+    // Only load icons when overlay is not actively shown to avoid frame drops during interaction
+    // The FPS check ensures this optimization is only active when frame limiting is enabled
     if (!should_show_overlay && settings->overlay_max_fps > 0) {
         std::lock_guard lock(overlay_mutex);
         load_next_ach_icon();
     }
     
-    // Update frame timing
-    last_render_time = std::chrono::steady_clock::now();
-    needs_redraw = false;
+    // Update frame timing using atomic operations
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+    last_render_time_ms.store(now_ms, std::memory_order_release);
+    needs_redraw.store(false, std::memory_order_release);
 }
 
 uint32 Steam_Overlay::apply_global_style_color()
@@ -1912,7 +1922,7 @@ void Steam_Overlay::ShowOverlay(bool state)
 
     show_overlay = state;
     overlay_state_changed = true;
-    needs_redraw = true; // Mark that we need to redraw for overlay state change
+    needs_redraw.store(true, std::memory_order_release); // Mark that we need to redraw for overlay state change
     
     PRINT_DEBUG("%i", (int)state);
     

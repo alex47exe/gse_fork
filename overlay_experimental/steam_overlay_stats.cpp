@@ -87,28 +87,65 @@ void Steam_Overlay_Stats::render_stats(int current_language)
     ));
     
     // Use pre-allocated buffer instead of std::stringstream for better performance
-    char stats_txt_buff[512];
+    // Buffer size calculated based on max expected content:
+    // - Translation text (~50 chars max)
+    // - FPS value (up to 5 digits)
+    // - Frametime value (up to 10 chars with precision)
+    // - Playtime (8 chars HH:MM:SS)
+    // - Separators and padding (~20 chars)
+    // Total: ~100 chars per stat type * 3 types = 300 chars + 200 margin = 500 chars
+    constexpr size_t STATS_BUFFER_SIZE = 512;
+    char stats_txt_buff[STATS_BUFFER_SIZE];
     int offset = 0;
     
     if (show_fps) {
-        offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset,
+        int written = snprintf(stats_txt_buff + offset, STATS_BUFFER_SIZE - offset,
             "%s%-2d", translationFpsDisplay[current_language], active_fps);
-    }
-    if (show_frametime) {
-        if (offset > 0) {
-            offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset, " | ");
+        if (written > 0 && offset + written < STATS_BUFFER_SIZE) {
+            offset += written;
+        } else {
+            offset = STATS_BUFFER_SIZE - 1; // Prevent further writes
         }
-        offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset,
-            "%s%-4.1f%s", translationFrametimeDisplay[current_language],
-            active_frametime_ms, translationFrametimeUnitDisplay[current_language]);
     }
-    if (show_playtime) {
+    if (show_frametime && offset < STATS_BUFFER_SIZE - 1) {
         if (offset > 0) {
-            offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset, " | ");
+            int written = snprintf(stats_txt_buff + offset, STATS_BUFFER_SIZE - offset, " | ");
+            if (written > 0 && offset + written < STATS_BUFFER_SIZE) {
+                offset += written;
+            } else {
+                offset = STATS_BUFFER_SIZE - 1;
+            }
         }
-        offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset,
-            "%s%02d:%02d:%02d", translationPlaytimeDisplay[current_language],
-            active_playtime_hr, active_playtime_min, active_playtime_sec);
+        if (offset < STATS_BUFFER_SIZE - 1) {
+            int written = snprintf(stats_txt_buff + offset, STATS_BUFFER_SIZE - offset,
+                "%s%-4.1f%s", translationFrametimeDisplay[current_language],
+                active_frametime_ms, translationFrametimeUnitDisplay[current_language]);
+            if (written > 0 && offset + written < STATS_BUFFER_SIZE) {
+                offset += written;
+            } else {
+                offset = STATS_BUFFER_SIZE - 1;
+            }
+        }
+    }
+    if (show_playtime && offset < STATS_BUFFER_SIZE - 1) {
+        if (offset > 0) {
+            int written = snprintf(stats_txt_buff + offset, STATS_BUFFER_SIZE - offset, " | ");
+            if (written > 0 && offset + written < STATS_BUFFER_SIZE) {
+                offset += written;
+            } else {
+                offset = STATS_BUFFER_SIZE - 1;
+            }
+        }
+        if (offset < STATS_BUFFER_SIZE - 1) {
+            int written = snprintf(stats_txt_buff + offset, STATS_BUFFER_SIZE - offset,
+                "%s%02d:%02d:%02d", translationPlaytimeDisplay[current_language],
+                active_playtime_hr, active_playtime_min, active_playtime_sec);
+            if (written > 0 && offset + written < STATS_BUFFER_SIZE) {
+                offset += written;
+            } else {
+                offset = STATS_BUFFER_SIZE - 1;
+            }
+        }
     }
     stats_txt_buff[offset] = '\0'; // Ensure null termination
 

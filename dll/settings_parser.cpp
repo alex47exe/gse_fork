@@ -1544,14 +1544,16 @@ static void parse_overlay_general_config(class Settings *settings_client, class 
     
     {
         auto val = ini.GetLongValue("overlay::general", "overlay_max_fps", settings_client->overlay_max_fps);
-        if (val >= 0) {
+        // Validate bounds: 0 = unlimited, 1-1000 = valid FPS limits
+        // Values above 1000 could cause division issues in frame budget calculation
+        if (val >= 0 && val <= 1000) {
             settings_client->overlay_max_fps = val;
         }
     }
     
     {
         auto val = ini.GetLongValue("overlay::general", "overlay_max_fps", settings_server->overlay_max_fps);
-        if (val >= 0) {
+        if (val >= 0 && val <= 1000) {
             settings_server->overlay_max_fps = val;
         }
     }
