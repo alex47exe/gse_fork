@@ -374,11 +374,13 @@ void Steam_Overlay::load_achievements_data()
             ach.max_progress = (uint32)pnMaxProgress;
         }
 
-        if (ach.icon == nullptr) {
-            ach.icon = _renderer->CreateResource();
-        }
-        if (ach.icon_gray == nullptr) {
-            ach.icon_gray = _renderer->CreateResource();
+        if (_renderer) {
+            if (ach.icon == nullptr) {
+                ach.icon = _renderer->CreateResource();
+            }
+            if (ach.icon_gray == nullptr) {
+                ach.icon_gray = _renderer->CreateResource();
+            }
         }
 
         achievements.emplace_back(ach);
@@ -437,6 +439,8 @@ void Steam_Overlay::allow_renderer_frame_processing(bool state, bool cleaning_up
     // this is very important internally it calls the necessary fuctions
     // to properly update ImGui window size on the next overlay_render_proc() call
 
+    if (!_renderer) return;
+
     if (state) {
         auto new_val = ++renderer_frame_processing_requests;
         if (new_val == 1) { // only take an action on first request
@@ -456,6 +460,8 @@ void Steam_Overlay::allow_renderer_frame_processing(bool state, bool cleaning_up
 }
 
 void Steam_Overlay::obscure_game_input(bool state) {
+    if (!_renderer) return;
+
     if (state) {
         auto new_val = ++obscure_cursor_requests;
         if (new_val == 1) { // only take an action on first request
@@ -1238,6 +1244,7 @@ bool Steam_Overlay::try_load_ach_icon(Overlay_Achievement &ach, bool achieved, b
     if (!settings->overlay_upload_achs_icons_to_gpu) return false; // don't upload anything to the GPU
 
     auto &icon_rsrc = achieved ? ach.icon : ach.icon_gray;
+    if (!icon_rsrc) return false; // icon resource not created yet
     if (icon_rsrc->GetResourceId() != 0) return true;
 
     // icons needs to be loaded, but we're not allowed
