@@ -31,11 +31,6 @@ newoption {
     trigger = "clean",
     description = "Cleanup before any action",
 }
-newoption {
-    category = "general",
-    trigger = "force-rebuild",
-    description = "Force rebuild even if deps are already present",
-}
 -- tools
 newoption {
     category = "tools",
@@ -273,13 +268,6 @@ local function cmake_build(dep_folder, is_32, extra_cmd_defs, c_flags_init, cxx_
         os.rmdir(build_dir)
         print('cleaning dir: ' .. install_dir)
         os.rmdir(install_dir)
-    end
-    
-    -- check if deps are already installed (skip build if present, unless --clean or --force-rebuild was used)
-    if not _OPTIONS["clean"] and not _OPTIONS["force-rebuild"] and os.isdir(install_dir) then
-        local install_abs = path.getabsolute(install_dir)
-        print('deps already installed at: ' .. install_abs .. ', skipping build')
-        return
     end
 
     if not os.mkdir(build_dir) then
