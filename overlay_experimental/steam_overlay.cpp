@@ -202,12 +202,12 @@ bool Steam_Overlay::renderer_hook_proc()
 
     // do a one time initialization
     // std::lock_guard<std::recursive_mutex> lock(overlay_mutex);
-    _renderer = future_renderer.get();
+    _renderer.reset(future_renderer.get());
     if (!_renderer) { // is this even possible?
         PRINT_DEBUG("renderer hook was null!");
         return true;
     }
-    PRINT_DEBUG("got renderer hook %p for '%s'", _renderer, _renderer->GetLibraryName());
+    PRINT_DEBUG("got renderer hook %p for '%s'", _renderer.get(), _renderer->GetLibraryName());
     
     // note: make sure to load all relevant strings before creating the font(s), otherwise some glyphs ranges will be missing
     load_achievements_data();
@@ -1744,10 +1744,9 @@ void Steam_Overlay::UnSetupOverlay()
                 }
             }
 
-            // manually calling this dtor looks bad, but it actually prevents a lot of crashes on exit, don't remove it!
-            // many DX12 games will crash on exit if the hook wasn't manually removed (ex appid 2933080, 1583230)
-            _renderer->~RendererHook_t();
-            _renderer = nullptr;
+            // Properly cleanup renderer hook using RAII
+            // The unique_ptr will call the deleter which properly deletes the object
+            _renderer.reset();
         }
 
         cleanup_renderer_hook();
