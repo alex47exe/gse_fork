@@ -38,7 +38,6 @@ jobs:
         with:
           key: "${{ env.DEPS_CACHE_KEY }}-${{ env.PREMAKE_ACTION }}"
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
-          lookup-only: true # don't restore cache if found
 
       # we need branch because it has build scripts
       - name: "Checkout branch"
@@ -65,13 +64,6 @@ jobs:
         with:
           ref: "third-party/deps/common"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/common"
-
-      - name: "Clone third-party deps (common/win)"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: "third-party/common/win"
-          path: "${{env.THIRD_PARTY_BASE_DIR}}/common/win"
 
       - name: "Build deps"
         if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
