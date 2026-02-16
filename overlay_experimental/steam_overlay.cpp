@@ -348,12 +348,19 @@ void Steam_Overlay::load_achievements_data()
     
     // Collect achievement data while holding global_mutex
     std::vector<Overlay_Achievement> temp_achievements;
+    uint32 achievements_num = 0;
     {
         std::lock_guard<std::recursive_mutex> lock(global_mutex);
 
         Steam_User_Stats* steamUserStats = get_steam_client()->steam_user_stats;
-        uint32 achievements_num = steamUserStats->GetNumAchievements();
+        achievements_num = steamUserStats->GetNumAchievements();
         for (uint32 i = 0; i < achievements_num; ++i) {
+            if (!setup_overlay_called) {
+                // Early exit if overlay is being torn down
+                PRINT_DEBUG("setup_overlay_called is false, aborting achievement loading");
+                return;
+            }
+
             Overlay_Achievement ach{};
             ach.name = steamUserStats->GetAchievementName(i);
             ach.title = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "name");
@@ -379,8 +386,6 @@ void Steam_Overlay::load_achievements_data()
             }
 
             temp_achievements.emplace_back(ach);
-            
-            if (!setup_overlay_called) return;
         }
     } // Release global_mutex here
 
@@ -403,7 +408,7 @@ void Steam_Overlay::load_achievements_data()
         achievements = std::move(temp_achievements);
     }
 
-    PRINT_DEBUG("count=%zu, loaded=%zu", achievements.size(), achievements.size());
+    PRINT_DEBUG("count=%u, loaded=%zu", achievements_num, achievements.size());
 
 }
 
