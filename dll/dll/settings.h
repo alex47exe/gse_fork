@@ -349,6 +349,10 @@ public:
     unsigned overlay_fps_avg_window = 10;
     float overlay_stats_pos_x = 0.0f;
     float overlay_stats_pos_y = 0.0f;
+    // disable aggressive cursor clipping for problematic games
+    bool disable_overlay_cursor_clipping = false;
+    // maximum overlay frame rate (0 = unlimited)
+    unsigned overlay_max_fps = 60;
     //warn people who use local save
     bool overlay_warn_local_save = false;
     //disable overlay warning for local save

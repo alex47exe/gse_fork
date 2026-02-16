@@ -459,22 +459,9 @@ void Steam_Overlay::obscure_game_input(bool state) {
     if (state) {
         auto new_val = ++obscure_cursor_requests;
         if (new_val == 1) { // only take an action on first request
-            ImGuiIO &io = ImGui::GetIO();
-            // force draw the cursor, otherwise games like Truberbrook will not have an overlay cursor
-            io.MouseDrawCursor = state;
-            // not necessary, just to be sure
-            io.WantCaptureMouse = state;
-            // not necessary, just to be sure
-            io.WantCaptureKeyboard = state;
-
-            // clip the cursor
-            _renderer->HideAppInputs(true);
-            PRINT_DEBUG("obscured app input (count=%u)", new_val);
-        }
-    } else {
-        if (obscure_cursor_requests > 0) {
-            auto new_val = --obscure_cursor_requests;
-            if (!new_val) { // only take an action when the requests reach 0
+            // Validate ImGui context before accessing IO
+            ImGuiContext* ctx = ImGui::GetCurrentContext();
+            if (ctx != nullptr) {
                 ImGuiIO &io = ImGui::GetIO();
                 // force draw the cursor, otherwise games like Truberbrook will not have an overlay cursor
                 io.MouseDrawCursor = state;
@@ -482,9 +469,35 @@ void Steam_Overlay::obscure_game_input(bool state) {
                 io.WantCaptureMouse = state;
                 // not necessary, just to be sure
                 io.WantCaptureKeyboard = state;
+            }
+
+            // clip the cursor only if not disabled via config
+            // some games (like God of War Ragnarok) have conflicts with cursor clipping
+            if (!settings->disable_overlay_cursor_clipping) {
+                _renderer->HideAppInputs(true);
+            }
+            PRINT_DEBUG("obscured app input (count=%u, cursor_clipping=%s)", new_val, settings->disable_overlay_cursor_clipping ? "disabled" : "enabled");
+        }
+    } else {
+        if (obscure_cursor_requests > 0) {
+            auto new_val = --obscure_cursor_requests;
+            if (!new_val) { // only take an action when the requests reach 0
+                // Validate ImGui context before accessing IO
+                ImGuiContext* ctx = ImGui::GetCurrentContext();
+                if (ctx != nullptr) {
+                    ImGuiIO &io = ImGui::GetIO();
+                    // force draw the cursor, otherwise games like Truberbrook will not have an overlay cursor
+                    io.MouseDrawCursor = state;
+                    // not necessary, just to be sure
+                    io.WantCaptureMouse = state;
+                    // not necessary, just to be sure
+                    io.WantCaptureKeyboard = state;
+                }
                 
-                // restore the old cursor
-                _renderer->HideAppInputs(false);
+                // restore the old cursor only if clipping was active
+                if (!settings->disable_overlay_cursor_clipping) {
+                    _renderer->HideAppInputs(false);
+                }
                 PRINT_DEBUG("restored app input (count=%u)", new_val);
             }
         }
@@ -599,6 +612,7 @@ bool Steam_Overlay::submit_notification(
     if (ach) notif.ach = *ach;
     
     notifications.emplace_back(notif);
+    needs_redraw = true; // Mark that we need to redraw for new notification
     allow_renderer_frame_processing(true);
     // uncomment this block to obscure cursor input and steal focus for these specific notifications
     switch (type) {
@@ -851,59 +865,88 @@ void Steam_Overlay::set_next_notification_pos(std::pair<float, float> scrn_size,
     const float padding_all_sides = 2 * (global_style.WindowPadding.y + global_style.WindowPadding.x);
 
     const float noti_width = scrn_width * Notification::width_percent;
-    const float msg_height = ImGui::CalcTextSize(
-        noti.message.c_str(),
-        noti.message.c_str() + noti.message.size(),
-        false,
-        noti_width - padding_all_sides - global_style.ItemSpacing.x
-    ).y;
-    float noti_height = msg_height;
     
-    // get the required position
-    Overlay_Appearance::NotificationPosition pos = Overlay_Appearance::default_pos;
-    switch ((notification_type)noti.type) {
-    case notification_type::achievement_progress:
-    case notification_type::achievement: {
-        pos = settings->overlay_appearance.ach_earned_pos;
-
-        const float new_msg_height = ImGui::CalcTextSize(
-            noti.message.c_str(),
-            noti.message.c_str() + noti.message.size(),
-            false,
-            noti_width - padding_all_sides - global_style.ItemSpacing.x - settings->overlay_appearance.icon_size
-        ).y;
-        const float new_noti_height = new_msg_height;
-
-        float biggest_noti_height = settings->overlay_appearance.icon_size;
-        if (biggest_noti_height < new_noti_height) biggest_noti_height = new_noti_height;
-
-        noti_height = biggest_noti_height;
-
-        if ((notification_type)noti.type == notification_type::achievement_progress) {
-            if (!noti.ach.value().achieved && noti.ach.value().max_progress > 0) {
-                noti_height += settings->overlay_appearance.font_size + global_style.WindowPadding.y;
-            }
-        }
-    }
-    break;
-
-    // case notification_type::invite: pos = settings->overlay_appearance.invite_pos; break;
-    case notification_type::invite: {
-        pos = settings->overlay_appearance.invite_pos;
+    // Use cached height if available and not dirty, otherwise calculate
+    float noti_height;
+    if (!noti.layout_dirty && noti.cached_height > 0.0f) {
+        noti_height = noti.cached_height;
+    } else {
+        // Calculate text height (this is expensive)
         const float msg_height = ImGui::CalcTextSize(
             noti.message.c_str(),
             noti.message.c_str() + noti.message.size(),
             false,
             noti_width - padding_all_sides - global_style.ItemSpacing.x
         ).y;
-        noti_height = msg_height + settings->overlay_appearance.font_size + global_style.WindowPadding.y;
+        noti_height = msg_height;
+        
+        // get the required position
+        Overlay_Appearance::NotificationPosition pos = Overlay_Appearance::default_pos;
+        switch ((notification_type)noti.type) {
+        case notification_type::achievement_progress:
+        case notification_type::achievement: {
+            pos = settings->overlay_appearance.ach_earned_pos;
+
+            const float new_msg_height = ImGui::CalcTextSize(
+                noti.message.c_str(),
+                noti.message.c_str() + noti.message.size(),
+                false,
+                noti_width - padding_all_sides - global_style.ItemSpacing.x - settings->overlay_appearance.icon_size
+            ).y;
+            const float new_noti_height = new_msg_height;
+
+            float biggest_noti_height = settings->overlay_appearance.icon_size;
+            if (biggest_noti_height < new_noti_height) biggest_noti_height = new_noti_height;
+
+            noti_height = biggest_noti_height;
+
+            if ((notification_type)noti.type == notification_type::achievement_progress) {
+                if (!noti.ach.value().achieved && noti.ach.value().max_progress > 0) {
+                    noti_height += settings->overlay_appearance.font_size + global_style.WindowPadding.y;
+                }
+            }
+        }
+        break;
+
+        // case notification_type::invite: pos = settings->overlay_appearance.invite_pos; break;
+        case notification_type::invite: {
+            pos = settings->overlay_appearance.invite_pos;
+            const float msg_height = ImGui::CalcTextSize(
+                noti.message.c_str(),
+                noti.message.c_str() + noti.message.size(),
+                false,
+                noti_width - padding_all_sides - global_style.ItemSpacing.x
+            ).y;
+            noti_height = msg_height + settings->overlay_appearance.font_size + global_style.WindowPadding.y;
+        }
+        break;
+        case notification_type::message: pos = settings->overlay_appearance.chat_msg_pos; break;
+        default: PRINT_DEBUG("ERROR: unhandled notification type %i", (int)noti.type); break;
+        }
+        // add some y padding for niceness
+        noti_height += 2 * global_style.WindowPadding.y;
+        
+        // Cache the calculated height (const_cast is needed since noti is const)
+        const_cast<Notification&>(noti).cached_height = noti_height;
+        const_cast<Notification&>(noti).layout_dirty = false;
     }
-    break;
-    case notification_type::message: pos = settings->overlay_appearance.chat_msg_pos; break;
-    default: PRINT_DEBUG("ERROR: unhandled notification type %i", (int)noti.type); break;
+    
+    // get the required position for animation
+    Overlay_Appearance::NotificationPosition pos = Overlay_Appearance::default_pos;
+    switch ((notification_type)noti.type) {
+    case notification_type::achievement_progress:
+    case notification_type::achievement:
+        pos = settings->overlay_appearance.ach_earned_pos;
+        break;
+    case notification_type::invite:
+        pos = settings->overlay_appearance.invite_pos;
+        break;
+    case notification_type::message:
+        pos = settings->overlay_appearance.chat_msg_pos;
+        break;
+    default:
+        break;
     }
-    // add some y padding for niceness
-    noti_height += 2 * global_style.WindowPadding.y;
 
     // 0 on the y-axis is top, 0 on the x-axis is left
     float x = 0.0f;
@@ -1031,6 +1074,8 @@ void Steam_Overlay::build_notifications(float width, float height)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, settings->overlay_appearance.notification_rounding);
    
     NotificationsCoords coords{};
+    bool has_animating_notifications = false;
+    
     for (auto it = notifications.begin(); it != notifications.end(); ++it) {
         auto noti_duration = get_notification_duration((notification_type)it->type);
         if (noti_duration.count() <= 0) {
@@ -1044,6 +1089,13 @@ void Steam_Overlay::build_notifications(float width, float height)
         if (elapsed_notif > total_allowed_duration) {
             it->expired = true;
             continue;
+        }
+        
+        // Check if this notification is animating
+        std::chrono::milliseconds animation_duration(settings->overlay_appearance.notification_animation);
+        auto steady_time = animation_duration + noti_duration;
+        if (elapsed_notif < animation_duration || elapsed_notif > steady_time) {
+            has_animating_notifications = true;
         }
 
         float settings_noti_alpha = settings->overlay_appearance.notification_a >= 0.0f && settings->overlay_appearance.notification_a <= 1.0f
@@ -1143,6 +1195,11 @@ void Steam_Overlay::build_notifications(float width, float height)
 
     ImGui::PopStyleVar();
     ImGui::PopFont();
+    
+    // If notifications are animating, mark that we need continuous redraws
+    if (has_animating_notifications) {
+        needs_redraw = true;
+    }
 
     // erase all notifications whose visible time exceeded the max
     notifications.erase(std::remove_if(notifications.begin(), notifications.end(), [this](const Notification &item) {
@@ -1261,24 +1318,63 @@ bool Steam_Overlay::try_load_ach_icon(Overlay_Achievement &ach, bool achieved, b
 // Try to make this function as short as possible or it might affect game's fps.
 void Steam_Overlay::overlay_render_proc()
 {
-    std::lock_guard lock(overlay_mutex);
-
-    if (!Ready()) return;
-
-    if (show_overlay) {
+    // Phase 1: Check if we should render at all (minimal locking)
+    {
+        // Check if ready without holding mutex for long
+        std::lock_guard lock(overlay_mutex);
+        if (!Ready()) return;
+    }
+    
+    // Phase 2: Frame rate limiting - skip render if within frame budget and nothing changed
+    if (settings->overlay_max_fps > 0 && !needs_redraw) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_render_time);
+        auto frame_budget = std::chrono::milliseconds(1000 / settings->overlay_max_fps);
+        
+        if (elapsed < frame_budget) {
+            return; // Skip this frame to maintain target FPS
+        }
+    }
+    
+    // Phase 3: Capture state needed for rendering with minimal mutex hold time
+    bool should_show_overlay = false;
+    bool has_notifications = false;
+    bool should_show_stats = false;
+    
+    {
+        std::lock_guard lock(overlay_mutex);
+        should_show_overlay = show_overlay;
+        has_notifications = !notifications.empty();
+        should_show_stats = stats.show_any_stats();
+    }
+    
+    // Phase 4: Perform rendering operations (ImGui doesn't need mutex protection)
+    if (should_show_overlay) {
+        // Lock only while accessing shared data during render
+        std::lock_guard lock(overlay_mutex);
         render_main_window();
     }
 
-    if (notifications.size()) {
+    if (has_notifications) {
         ImGuiIO &io = ImGui::GetIO();
+        std::lock_guard lock(overlay_mutex);
         build_notifications(io.DisplaySize.x, io.DisplaySize.y);
     }
 
-    if (stats.show_any_stats()) {
+    if (should_show_stats) {
         stats.render_stats(current_language);
     }
 
-    load_next_ach_icon();
+    // Phase 5: Background icon loading (moved outside of main render critical path)
+    // Only load icons when not actively rendering to avoid frame drops
+    if (!should_show_overlay && settings->overlay_max_fps > 0) {
+        std::lock_guard lock(overlay_mutex);
+        load_next_ach_icon();
+    }
+    
+    // Update frame timing
+    last_render_time = std::chrono::steady_clock::now();
+    needs_redraw = false;
 }
 
 uint32 Steam_Overlay::apply_global_style_color()
@@ -1816,6 +1912,7 @@ void Steam_Overlay::ShowOverlay(bool state)
 
     show_overlay = state;
     overlay_state_changed = true;
+    needs_redraw = true; // Mark that we need to redraw for overlay state change
     
     PRINT_DEBUG("%i", (int)state);
     

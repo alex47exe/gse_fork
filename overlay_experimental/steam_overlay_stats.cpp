@@ -86,43 +86,36 @@ void Steam_Overlay_Stats::render_stats(int current_language)
         settings->overlay_appearance.stats_text_a
     ));
     
-    std::stringstream stats_txt_buff{};
+    // Use pre-allocated buffer instead of std::stringstream for better performance
+    char stats_txt_buff[512];
+    int offset = 0;
+    
     if (show_fps) {
-        stats_txt_buff << translationFpsDisplay[current_language]
-                       << std::left << std::setw(2)
-                       << active_fps
-                       << std::right << std::setw(0);
+        offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset,
+            "%s%-2d", translationFpsDisplay[current_language], active_fps);
     }
     if (show_frametime) {
-        if (stats_txt_buff.tellp() > 0) {
-            stats_txt_buff << " | ";
+        if (offset > 0) {
+            offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset, " | ");
         }
-        stats_txt_buff << translationFrametimeDisplay[current_language]
-                       << std::left << std::setw(4) << std::fixed << std::setprecision(1)
-                       << active_frametime_ms
-                       << std::defaultfloat << std::right << std::setw(0)
-                       << translationFrametimeUnitDisplay[current_language];
+        offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset,
+            "%s%-4.1f%s", translationFrametimeDisplay[current_language],
+            active_frametime_ms, translationFrametimeUnitDisplay[current_language]);
     }
     if (show_playtime) {
-        if (stats_txt_buff.tellp() > 0) {
-            stats_txt_buff << " | ";
+        if (offset > 0) {
+            offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset, " | ");
         }
-        const auto org_fill = stats_txt_buff.fill();
-        stats_txt_buff << translationPlaytimeDisplay[current_language]
-                       << std::setw(2) << std::setfill('0')
-                       << active_playtime_hr << ':'
-                       << std::setw(2) << std::setfill('0')
-                       << active_playtime_min << ':'
-                       << std::setw(2) << std::setfill('0')
-                       << active_playtime_sec
-                       << std::setw(0) << std::setfill(org_fill);
+        offset += snprintf(stats_txt_buff + offset, sizeof(stats_txt_buff) - offset,
+            "%s%02d:%02d:%02d", translationPlaytimeDisplay[current_language],
+            active_playtime_hr, active_playtime_min, active_playtime_sec);
     }
-    const auto stats_txt = stats_txt_buff.str();
+    stats_txt_buff[offset] = '\0'; // Ensure null termination
 
     // set FPS box width/height based on text size
     const auto msg_box = ImGui::CalcTextSize(
-        stats_txt.c_str(),
-        stats_txt.c_str() + stats_txt.size()
+        stats_txt_buff,
+        stats_txt_buff + offset
     );
     auto &global_style = ImGui::GetStyle();
     const float padding_all_sides = global_style.WindowPadding.y + global_style.WindowPadding.x;
@@ -141,7 +134,7 @@ void Steam_Overlay_Stats::render_stats(int current_language)
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoInputs |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse)) {
-        ImGui::TextWrapped("%s", stats_txt.c_str());
+        ImGui::TextWrapped("%s", stats_txt_buff);
     }
     ImGui::End();
 

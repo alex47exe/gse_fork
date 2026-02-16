@@ -90,6 +90,10 @@ struct Notification
     std::string message{};
     std::pair<const Friend, friend_window_state>* frd{};
     std::optional<Overlay_Achievement> ach{};
+    
+    // cached layout data for performance optimization
+    bool layout_dirty = true;
+    float cached_height = 0.0f;
 };
 
 // notification coordinates { x, y }
@@ -177,6 +181,10 @@ class Steam_Overlay
 
     std::recursive_mutex overlay_mutex{};
     std::atomic<bool> setup_overlay_called = false;
+    
+    // frame rate limiting for overlay rendering
+    std::chrono::steady_clock::time_point last_render_time{};
+    std::atomic<bool> needs_redraw = true;
 
     std::map<std::string, std::vector<char>> wav_files{
         { "overlay_achievement_notification.wav", std::vector<char>{} },

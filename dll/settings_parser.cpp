@@ -1539,6 +1539,23 @@ static void parse_overlay_general_config(class Settings *settings_client, class 
         }
     }
     
+    settings_client->disable_overlay_cursor_clipping = ini.GetBoolValue("overlay::general", "disable_overlay_cursor_clipping", settings_client->disable_overlay_cursor_clipping);
+    settings_server->disable_overlay_cursor_clipping = ini.GetBoolValue("overlay::general", "disable_overlay_cursor_clipping", settings_server->disable_overlay_cursor_clipping);
+    
+    {
+        auto val = ini.GetLongValue("overlay::general", "overlay_max_fps", settings_client->overlay_max_fps);
+        if (val >= 0) {
+            settings_client->overlay_max_fps = val;
+        }
+    }
+    
+    {
+        auto val = ini.GetLongValue("overlay::general", "overlay_max_fps", settings_server->overlay_max_fps);
+        if (val >= 0) {
+            settings_server->overlay_max_fps = val;
+        }
+    }
+    
 }
 
 // main::misc::steam_game_stats_reports_dir
