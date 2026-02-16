@@ -345,36 +345,48 @@ void Steam_Overlay::load_audio()
 void Steam_Overlay::load_achievements_data()
 {
     PRINT_DEBUG_ENTRY();
-    std::lock_guard<std::recursive_mutex> lock(global_mutex);
+    
+    // Collect achievement data while holding global_mutex
+    std::vector<Overlay_Achievement> temp_achievements;
+    {
+        std::lock_guard<std::recursive_mutex> lock(global_mutex);
 
-    Steam_User_Stats* steamUserStats = get_steam_client()->steam_user_stats;
-    uint32 achievements_num = steamUserStats->GetNumAchievements();
-    for (uint32 i = 0; i < achievements_num; ++i) {
-        Overlay_Achievement ach{};
-        ach.name = steamUserStats->GetAchievementName(i);
-        ach.title = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "name");
-        ach.description = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "desc");
-        
-        const char *hidden = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "hidden");
-        ach.hidden = hidden && hidden[0] == '1';
+        Steam_User_Stats* steamUserStats = get_steam_client()->steam_user_stats;
+        uint32 achievements_num = steamUserStats->GetNumAchievements();
+        for (uint32 i = 0; i < achievements_num; ++i) {
+            Overlay_Achievement ach{};
+            ach.name = steamUserStats->GetAchievementName(i);
+            ach.title = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "name");
+            ach.description = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "desc");
+            
+            const char *hidden = steamUserStats->GetAchievementDisplayAttribute(ach.name.c_str(), "hidden");
+            ach.hidden = hidden && hidden[0] == '1';
 
-        bool achieved = false;
-        uint32 unlock_time = 0;
-        if (steamUserStats->GetAchievementAndUnlockTime(ach.name.c_str(), &achieved, &unlock_time)) {
-            ach.achieved = achieved;
-            ach.unlock_time = unlock_time;
-        } else {
-            ach.achieved = false;
-            ach.unlock_time = 0;
+            bool achieved = false;
+            uint32 unlock_time = 0;
+            if (steamUserStats->GetAchievementAndUnlockTime(ach.name.c_str(), &achieved, &unlock_time)) {
+                ach.achieved = achieved;
+                ach.unlock_time = unlock_time;
+            } else {
+                ach.achieved = false;
+                ach.unlock_time = 0;
+            }
+
+            float pnMinProgress = 0, pnMaxProgress = 0;
+            if (steamUserStats->GetAchievementProgressLimits(ach.name.c_str(), &pnMinProgress, &pnMaxProgress)) {
+                ach.progress = (uint32)pnMinProgress;
+                ach.max_progress = (uint32)pnMaxProgress;
+            }
+
+            temp_achievements.emplace_back(ach);
+            
+            if (!setup_overlay_called) return;
         }
+    } // Release global_mutex here
 
-        float pnMinProgress = 0, pnMaxProgress = 0;
-        if (steamUserStats->GetAchievementProgressLimits(ach.name.c_str(), &pnMinProgress, &pnMaxProgress)) {
-            ach.progress = (uint32)pnMinProgress;
-            ach.max_progress = (uint32)pnMaxProgress;
-        }
-
-        if (_renderer) {
+    // Create renderer resources without holding global_mutex to avoid deadlock
+    if (_renderer) {
+        for (auto &ach : temp_achievements) {
             if (ach.icon == nullptr) {
                 ach.icon = _renderer->CreateResource();
             }
@@ -382,13 +394,12 @@ void Steam_Overlay::load_achievements_data()
                 ach.icon_gray = _renderer->CreateResource();
             }
         }
-
-        achievements.emplace_back(ach);
-        
-        if (!setup_overlay_called) return;
     }
 
-    PRINT_DEBUG("count=%u, loaded=%zu", achievements_num, achievements.size());
+    // Store achievements
+    achievements = std::move(temp_achievements);
+
+    PRINT_DEBUG("count=%zu, loaded=%zu", temp_achievements.size(), achievements.size());
 
 }
 

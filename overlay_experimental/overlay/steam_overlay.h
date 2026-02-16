@@ -175,6 +175,8 @@ class Steam_Overlay
     ImFontGlyphRangesBuilder font_builder{};
     ImVector<ImWchar> ranges{};
 
+    // LOCK ORDERING: overlay_mutex must always be acquired before global_mutex to prevent deadlock
+    // Never hold global_mutex while calling renderer operations or ImGui functions
     std::recursive_mutex overlay_mutex{};
     std::atomic<bool> setup_overlay_called = false;
 
