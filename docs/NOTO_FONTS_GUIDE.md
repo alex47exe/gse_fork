@@ -1,5 +1,12 @@
 # Noto Fonts Guide for Complete Language and Emoji Support
 
+## Important Note
+
+**For Steam Languages:** If you specifically want to support all 30 Steam-supported languages plus emojis, see the focused guide:
+- **[Noto Fonts for ALL Steam Languages + Emojis](NOTO_FONTS_FOR_STEAM.md)** ⭐
+
+This document provides general Noto font information. The Steam-specific guide tells you exactly which 3 font files you need.
+
 ## Overview
 
 This guide explains which **Noto font files** you need to use for comprehensive language and emoji support in the Steam overlay. Noto is Google's open-source font family designed to support all Unicode languages ("No Tofu" - no more □ boxes).
