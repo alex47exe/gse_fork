@@ -6,6 +6,9 @@
 **/.venv
 **/__pycache__
 
+# BUILD
+*.log
+
 # PROTOBUF
 /proto_gen
 

@@ -384,9 +384,12 @@ void Steam_Overlay::load_achievements_data()
         }
     } // Release global_mutex here
 
+    // Store achievements first
+    achievements = std::move(temp_achievements);
+
     // Create renderer resources without holding global_mutex to avoid deadlock
     if (_renderer) {
-        for (auto &ach : temp_achievements) {
+        for (auto &ach : achievements) {
             if (ach.icon == nullptr) {
                 ach.icon = _renderer->CreateResource();
             }
@@ -396,10 +399,7 @@ void Steam_Overlay::load_achievements_data()
         }
     }
 
-    // Store achievements
-    achievements = std::move(temp_achievements);
-
-    PRINT_DEBUG("count=%zu, loaded=%zu", temp_achievements.size(), achievements.size());
+    PRINT_DEBUG("count=%zu, loaded=%zu", achievements.size(), achievements.size());
 
 }
 
