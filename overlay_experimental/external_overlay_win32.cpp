@@ -56,8 +56,9 @@ bool ExternalOverlayWindow::Init(HWND game_hwnd, std::function<void()> render_ca
     );
     if (!hwnd_) return false;
 
-    // Use LWA_ALPHA with 255 — transparency comes from the D3D11 clear color {0,0,0,0}
-    SetLayeredWindowAttributes(hwnd_, 0, 255, LWA_ALPHA);
+    // Use LWA_COLORKEY: pure black (RGB 0,0,0) is made transparent by DWM,
+    // so the game shows through wherever ImGui draws nothing.
+    SetLayeredWindowAttributes(hwnd_, RGB(0, 0, 0), 0, LWA_COLORKEY);
     ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
 
     // Create D3D11 device and swapchain
@@ -197,23 +198,25 @@ void ExternalOverlayWindow::RenderLoop()
             DispatchMessageW(&msg);
         }
 
-        if (visible_) {
-            ImGui_ImplDX11_NewFrame();
-            ImGui_ImplWin32_NewFrame();
-            ImGui::NewFrame();
+        // Always render so that notifications show even when the main overlay is closed.
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
 
-            if (render_callback_) render_callback_();
+        if (render_callback_) render_callback_();
 
-            ImGui::Render();
+        ImGui::Render();
 
-            // Clear to transparent black
-            const float clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            d3d_context_->OMSetRenderTargets(1, &rtv_, nullptr);
-            d3d_context_->ClearRenderTargetView(rtv_, clear_color);
-            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-            swapchain_->Present(1, 0);
-        } else {
-            // Sleep when hidden to avoid wasting GPU
+        // Clear to opaque black — LWA_COLORKEY makes black transparent so the
+        // game shows through wherever ImGui draws nothing.
+        const float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        d3d_context_->OMSetRenderTargets(1, &rtv_, nullptr);
+        d3d_context_->ClearRenderTargetView(rtv_, clear_color);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        swapchain_->Present(1, 0);
+
+        // Throttle to ~30 fps when the main overlay is not open to minimise GPU use.
+        if (!visible_) {
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
     }
