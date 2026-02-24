@@ -167,8 +167,10 @@ Steam_Overlay::~Steam_Overlay()
 void Steam_Overlay::request_renderer_detector()
 {
     PRINT_DEBUG_ENTRY();
+#ifndef USE_EXTERNAL_OVERLAY
     // request renderer detection
     future_renderer = InGameOverlay::DetectRenderer();
+#endif
 }
 
 void Steam_Overlay::set_renderer_hook_timeout()
@@ -184,6 +186,27 @@ void Steam_Overlay::cleanup_renderer_hook()
 
 bool Steam_Overlay::renderer_hook_proc()
 {
+#ifdef USE_EXTERNAL_OVERLAY
+    // External overlay path: no renderer detection needed
+    if (!setup_overlay_called) return true;
+
+    load_achievements_data();
+    load_audio();
+    create_fonts();
+
+    // Find the game HWND: try foreground window as a reasonable heuristic
+    game_hwnd_ = GetForegroundWindow();
+
+    _ext_overlay = new ExternalOverlayWindow();
+    bool ok = _ext_overlay->Init(game_hwnd_, [this](){ overlay_render_proc(); }, &fonts_atlas);
+    if (ok) {
+        overlay_state_hook(true);
+    } else {
+        delete _ext_overlay;
+        _ext_overlay = nullptr;
+    }
+    return true;
+#else
     if (renderer_hook_timeout_ctr > 0 && future_renderer.wait_for(std::chrono::milliseconds(renderer_detector_polling_ms)) != std::future_status::ready) {
         return false;
     }
@@ -232,6 +255,7 @@ bool Steam_Overlay::renderer_hook_proc()
     PRINT_DEBUG("set achievement icon batch size to %u", settings->overlay_auto_load_batch_size);
 
     return true;
+#endif // USE_EXTERNAL_OVERLAY
 }
 
 // note: make sure to load all relevant strings before creating the font(s), otherwise some glyphs ranges will be missing
@@ -381,10 +405,14 @@ void Steam_Overlay::load_achievements_data()
         }
 
         if (ach.icon == nullptr) {
+#ifndef USE_EXTERNAL_OVERLAY
             ach.icon = _renderer->CreateResource();
+#endif
         }
         if (ach.icon_gray == nullptr) {
+#ifndef USE_EXTERNAL_OVERLAY
             ach.icon_gray = _renderer->CreateResource();
+#endif
         }
 
         achievements.emplace_back(ach);
@@ -456,6 +484,11 @@ bool Steam_Overlay::open_overlay_hook(bool toggle)
 
 void Steam_Overlay::allow_renderer_frame_processing(bool state, bool cleaning_up_overlay)
 {
+#ifdef USE_EXTERNAL_OVERLAY
+    // Under the external overlay path the render loop runs continuously;
+    // no per-frame processing toggle is needed.
+    return;
+#endif
     // this is very important internally it calls the necessary fuctions
     // to properly update ImGui window size on the next overlay_render_proc() call
 
@@ -489,9 +522,11 @@ void Steam_Overlay::obscure_game_input(bool state) {
             // not necessary, just to be sure
             io.WantCaptureKeyboard = state;
 
+#ifndef USE_EXTERNAL_OVERLAY
             // clip the cursor
             _renderer->HideAppInputs(true);
             PRINT_DEBUG("obscured app input (count=%u)", new_val);
+#endif
         }
     } else {
         if (obscure_cursor_requests > 0) {
@@ -505,9 +540,11 @@ void Steam_Overlay::obscure_game_input(bool state) {
                 // not necessary, just to be sure
                 io.WantCaptureKeyboard = state;
                 
+#ifndef USE_EXTERNAL_OVERLAY
                 // restore the old cursor
                 _renderer->HideAppInputs(false);
                 PRINT_DEBUG("restored app input (count=%u)", new_val);
+#endif
             }
         }
     }
@@ -1109,7 +1146,7 @@ void Steam_Overlay::build_notifications(float width, float height)
                     auto &icon_rsrc = (notification_type)it->type == notification_type::achievement
                         ? ach.icon
                         : ach.icon_gray;
-                    if (icon_rsrc->GetResourceId() != 0 && ImGui::BeginTable("imgui_table", 2)) {
+                    if (icon_rsrc && icon_rsrc->GetResourceId() != 0 && ImGui::BeginTable("imgui_table", 2)) {
                         ImGui::TableSetupColumn("imgui_table_image", ImGuiTableColumnFlags_WidthFixed, settings->overlay_appearance.icon_size);
                         ImGui::TableSetupColumn("imgui_table_text");
                         ImGui::TableNextRow(ImGuiTableRowFlags_None, settings->overlay_appearance.icon_size);
@@ -1504,7 +1541,7 @@ void Steam_Overlay::render_main_window()
                     ImGui::Separator();
 
                     bool could_create_ach_table_entry = false;
-                    if (x.icon->GetResourceId() != 0 || x.icon_gray->GetResourceId() != 0) {
+                    if ((x.icon && x.icon->GetResourceId() != 0) || (x.icon_gray && x.icon_gray->GetResourceId() != 0)) {
                         if (ImGui::BeginTable(x.title.c_str(), 2)) {
                             could_create_ach_table_entry = true;
 
@@ -1514,7 +1551,7 @@ void Steam_Overlay::render_main_window()
 
                             ImGui::TableSetColumnIndex(0);
                             auto &icon_rsrc = achieved ? x.icon : x.icon_gray;
-                            if (icon_rsrc->GetResourceId() != 0) {
+                            if (icon_rsrc && icon_rsrc->GetResourceId() != 0) {
                                 ImGui::Image(
                                     icon_rsrc->GetResourceId(),
                                     ImVec2(settings->overlay_appearance.icon_size, settings->overlay_appearance.icon_size)
@@ -1726,6 +1763,14 @@ void Steam_Overlay::UnSetupOverlay()
         renderer_hook_init_thread.kill();
         renderer_detector_delay_thread.kill();
 
+#ifdef USE_EXTERNAL_OVERLAY
+        if (_ext_overlay) {
+            _ext_overlay->Shutdown();
+            delete _ext_overlay;
+            _ext_overlay = nullptr;
+        }
+        cleanup_renderer_hook();
+#else
         // stop internal frame processing & restore cursor
         if (_renderer) {
             // for some reason this gets triggered after the overlay instance has been destroyed
@@ -1755,6 +1800,7 @@ void Steam_Overlay::UnSetupOverlay()
         }
 
         cleanup_renderer_hook();
+#endif // USE_EXTERNAL_OVERLAY
     }
     
     PRINT_DEBUG("done *********");
@@ -1843,6 +1889,10 @@ void Steam_Overlay::ShowOverlay(bool state)
     
     Steam_Overlay::allow_renderer_frame_processing(state);
     Steam_Overlay::obscure_game_input(state);
+
+#ifdef USE_EXTERNAL_OVERLAY
+    if (_ext_overlay) _ext_overlay->SetVisible(state);
+#endif
 
 }
 

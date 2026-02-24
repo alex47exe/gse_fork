@@ -145,6 +145,12 @@ newoption {
     description = "Add resources to Windows builds",
 }
 
+newoption {
+    category = "build",
+    trigger = "use-external-overlay",
+    description = "Use an external transparent Win32 window for the overlay instead of hooking the game renderer (Windows only)",
+}
+
 end
 -- End windows options
 
@@ -913,6 +919,13 @@ project "api_experimental"
         removefiles {
             detours_files,
         }
+    -- External overlay source files (Windows only)
+    filter { "system:windows", "options:use-external-overlay", }
+        files {
+            path.join(deps_dir, "ingame_overlay/deps/ImGui/backends/imgui_impl_win32.cpp"),
+            path.join(deps_dir, "ingame_overlay/deps/ImGui/backends/imgui_impl_dx11.cpp"),
+        }
+        defines { "USE_EXTERNAL_OVERLAY" }
 
 
     -- libs to link
@@ -925,6 +938,12 @@ project "api_experimental"
     filter { "system:windows", }
         links {
             common_link_win,
+        }
+    -- Windows external overlay libs to link
+    filter { "system:windows", "options:use-external-overlay", }
+        links {
+            "d3d11",
+            "dxgi",
         }
 
     -- Linux libs to link
@@ -1047,6 +1066,13 @@ project "steamclient_experimental"
         removefiles {
             detours_files,
         }
+    -- External overlay source files (Windows only)
+    filter { "system:windows", "options:use-external-overlay", }
+        files {
+            path.join(deps_dir, "ingame_overlay/deps/ImGui/backends/imgui_impl_win32.cpp"),
+            path.join(deps_dir, "ingame_overlay/deps/ImGui/backends/imgui_impl_dx11.cpp"),
+        }
+        defines { "USE_EXTERNAL_OVERLAY" }
 
 
     -- libs to link
@@ -1059,6 +1085,12 @@ project "steamclient_experimental"
     filter { "system:windows", }
         links {
             common_link_win,
+        }
+    -- Windows external overlay libs to link
+    filter { "system:windows", "options:use-external-overlay", }
+        links {
+            "d3d11",
+            "dxgi",
         }
 
     -- Linux libs to link

@@ -14,6 +14,10 @@
 #include "InGameOverlay/ImGui/imgui.h"
 #include "overlay/steam_overlay_stats.h"
 
+#ifdef USE_EXTERNAL_OVERLAY
+#include "external_overlay_win32.h"
+#endif
+
 static constexpr size_t max_chat_len = 768;
 
 enum window_state
@@ -162,6 +166,11 @@ class Steam_Overlay
     
     std::future<InGameOverlay::RendererHook_t *> future_renderer{};
     InGameOverlay::RendererHook_t *_renderer{};
+
+#ifdef USE_EXTERNAL_OVERLAY
+    ExternalOverlayWindow* _ext_overlay{};
+    HWND game_hwnd_{};
+#endif
 
     common_helpers::KillableWorker renderer_detector_delay_thread{};
     common_helpers::KillableWorker renderer_hook_init_thread{};
