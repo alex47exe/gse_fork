@@ -1,0 +1,134 @@
+# PATCH.txt — ingame_overlay (Nemirtingas) — GSE Fork Detailed Patch Log
+
+This file documents all changes made to the ingame_overlay dependency in this fork, including every line added, removed, or modified, with explanations.
+
+---
+
+## 1. Added SRGB Format Variants to ScreenshotDataFormat_t (enum)
+
+**File:** DX11Hook.cpp, DX12Hook.cpp, VulkanHook.cpp, ScreenshotDataFormat_t enum header
+
+### Changes:
+- Added 3 new enum values:
+  - `R8G8B8A8_SRGB = 13`
+  - `B8G8R8A8_SRGB = 14`
+  - `B8G8R8X8_SRGB = 15`
+- Updated all switch/case and format-mapping logic to recognize and handle these new SRGB formats.
+
+**Explanation:**
+These formats are required to correctly detect and process swapchains/backbuffers that use hardware sRGB encoding (e.g., DXGI_FORMAT_R8G8B8A8_UNORM_SRGB). Without these, the overlay could not distinguish between linear and sRGB-encoded SDR, leading to double-encoding or incorrect colour transforms.
+
+---
+
+## 2. Format Detection Logic Improvements
+
+**Files:** DX11Hook.cpp, DX12Hook.cpp, VulkanHook.cpp
+
+### Changes:
+- Updated swapchain/backbuffer format detection to:
+  - Recognize the new SRGB enum values.
+  - Correctly classify sRGB swapchains as SCS_SDR_SRGB_RTV.
+  - Pass this classification to the overlay via the ScreenshotDataFormat_t path.
+
+**Explanation:**
+This ensures the overlay can distinguish between:
+- Linear HDR (FP16/FP32/UNORM16)
+- HDR10 PQ (R10G10B10A2)
+- SDR UNORM
+- SDR sRGB (hardware-encoded)
+
+---
+
+## 3. Build System/Packaging
+
+**Files:** build_win_premake_deps.bat, build_linux_premake.sh, ingame_overlay.tar.gz
+
+### Changes:
+- Repacked ingame_overlay.tar.gz with the patched binaries and updated sources.
+- No changes to the build scripts themselves, but the tarball now contains the patched overlay.
+
+**Explanation:**
+Ensures that all downstream builds use the patched overlay with full colour-space support.
+
+---
+
+## 4. Testing/Verification
+
+- Verified that patched overlay correctly detects and reports:
+  - DX11/12/Vulkan sRGB swapchains
+  - Linear HDR and PQ HDR10
+  - No regressions for legacy SDR/UNORM paths
+
+---
+
+## 5. No Other Changes
+
+No other code, logic, or files were modified in the ingame_overlay dependency for this fork.
+
+---
+
+**Patch Author:** GSE Fork Maintainers
+**Date:** 2026-04-15
+
+# Focus: Color-Space Detection/Handling Changes (Summary)
+
+These are the specific changes that enable correct swapchain and color-space detection/handling:
+
+1. **SRGB Format Enum Additions**
+   - Added new enum values for hardware sRGB swapchains (R8G8B8A8_SRGB, etc).
+   - Overlay can now detect sRGB-encoded SDR and apply correct sRGB→linear transform, avoiding double-encoding.
+
+2. **Format Detection Logic Improvements**
+   - Updated all detection logic to recognize/classify sRGB swapchains as SCS_SDR_SRGB_RTV.
+   - Overlay can now distinguish and handle: linear HDR, HDR10 PQ, SDR UNORM, and SDR sRGB.
+   - Ensures correct color transforms for all swapchain types, preventing color errors.
+
+3. **No Other Logic Changed**
+   - All changes are strictly to enable robust, correct color-space detection and handling for modern SDR/HDR swapchains.
+
+**Result:**
+Overlay now reliably detects and processes all relevant swapchain color spaces, ensuring accurate color rendering and avoiding double-encoding or color loss in both SDR and HDR scenarios.
+
+---
+
+# Exact Code Changes for Color-Space/Swapchain Detection (with line numbers)
+
+## include/InGameOverlay/RendererHook.h
+- **Lines 95–98 (added):**
+  ```cpp
+  // sRGB variants (hardware sRGB encoding on the RTV)
+  R8G8B8A8_SRGB,
+  B8G8R8A8_SRGB,
+  B8G8R8X8_SRGB,
+  ```
+  **Why:** Enables the overlay to represent and distinguish hardware sRGB-encoded swapchains, which is essential for correct color decoding and avoiding double-encoding.
+
+## src/Windows/DX11Hook.cpp
+- **Lines 63–65 (added):**
+  ```cpp
+  case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return InGameOverlay::ScreenshotDataFormat_t::R8G8B8A8_SRGB;
+  case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return InGameOverlay::ScreenshotDataFormat_t::B8G8R8A8_SRGB;
+  case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB: return InGameOverlay::ScreenshotDataFormat_t::B8G8R8X8_SRGB;
+  ```
+  **Why:** Ensures DX11 swapchains using sRGB formats are detected and classified, so the overlay can apply the correct color transform.
+
+## src/Windows/DX12Hook.cpp
+- **Lines 71–73 (added):**
+  ```cpp
+  case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return InGameOverlay::ScreenshotDataFormat_t::R8G8B8A8_SRGB;
+  case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return InGameOverlay::ScreenshotDataFormat_t::B8G8R8A8_SRGB;
+  case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB: return InGameOverlay::ScreenshotDataFormat_t::B8G8R8X8_SRGB;
+  ```
+  **Why:** Same as above, but for DX12 swapchains.
+
+## src/Windows/VulkanHook.cpp
+- **Lines 70, 72 (added):**
+  ```cpp
+  case VK_FORMAT_R8G8B8A8_SRGB           : return ScreenshotDataFormat_t::R8G8B8A8_SRGB;
+  case VK_FORMAT_B8G8R8A8_SRGB           : return ScreenshotDataFormat_t::B8G8R8A8_SRGB;
+  ```
+  **Why:** Ensures Vulkan sRGB swapchains are detected and classified, enabling correct color handling for Vulkan games.
+
+---
+
+Each of these changes is required for the overlay to reliably detect and process all relevant swapchain color spaces, ensuring accurate color rendering and avoiding double-encoding or color loss in both SDR and HDR scenarios.
