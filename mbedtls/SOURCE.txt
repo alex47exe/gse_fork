@@ -2,7 +2,7 @@
 
 https://github.com/Mbed-TLS/mbedtls
 
-VERSION: https://github.com/Mbed-TLS/mbedtls/releases/tag/v3.6.4
+VERSION: https://github.com/Mbed-TLS/mbedtls/releases/tag/v3.6.6
 
 #### LICENSE
 

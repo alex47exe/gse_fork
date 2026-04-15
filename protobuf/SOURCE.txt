@@ -2,7 +2,7 @@
 
 https://github.com/protocolbuffers/protobuf
 
-VERSION: https://github.com/protocolbuffers/protobuf/releases/tag/v31.1
+VERSION: https://github.com/protocolbuffers/protobuf/releases/tag/v34.1
 
 #### LICENSE
 

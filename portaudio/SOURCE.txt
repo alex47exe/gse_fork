@@ -2,7 +2,7 @@
 
 https://github.com/PortAudio/portaudio
 
-VERSION: https://github.com/PortAudio/portaudio/commit/19d598752989ed091b8f55ae688c940a8c085d73
+VERSION: https://github.com/PortAudio/portaudio/releases/tag/v19.7.0
 
 #### LICENSE
 
