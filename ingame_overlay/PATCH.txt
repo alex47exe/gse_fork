@@ -132,3 +132,133 @@ Overlay now reliably detects and processes all relevant swapchain color spaces, 
 ---
 
 Each of these changes is required for the overlay to reliably detect and process all relevant swapchain color spaces, ensuring accurate color rendering and avoiding double-encoding or color loss in both SDR and HDR scenarios.
+
+---
+---
+
+# Patch 2: FP16 (RGBA16F) Texture Upload Support
+
+**Date:** 2026-04-17
+**Purpose:** Allow the overlay to upload textures as R16G16B16A16_FLOAT instead of only R8G8B8A8_UNORM. This eliminates banding/quantization artifacts when icons and avatars are rendered into HDR swap chains, because the sRGB→linear→HDR colour transform can be baked directly into 16-bit half-float pixel data rather than being clamped to 8-bit UNORM.
+
+---
+
+## 6. RendererPixelFormat Enum (public API)
+
+**File:** include/InGameOverlay/RendererResource.h
+
+### Changes:
+- Added `RendererPixelFormat` enum class inside the `InGameOverlay` namespace:
+  ```cpp
+  enum class RendererPixelFormat
+  {
+      RGBA8,   // 4 bytes per pixel (default)
+      RGBA16F, // 8 bytes per pixel (FP16 half-float)
+  };
+  ```
+- Added a new pure virtual overload of `AttachResource`:
+  ```cpp
+  virtual void AttachResource(const void* data, uint32_t width, uint32_t height, RendererPixelFormat format) = 0;
+  ```
+
+**Why:** Callers (steam_overlay.cpp) need to tell the renderer "this pixel buffer is FP16, not RGBA8" so the correct GPU texture format is created. The enum lives in the public header so both the overlay consumer and the internal backends can see it.
+
+---
+
+## 7. Internal Plumbing — ResourceState_t / RendererResourceInternal_t
+
+**Files:** src/RendererResourceInternal.h, src/RendererResourceInternal.cpp
+
+### RendererResourceInternal.h changes:
+- `ResourceState_t` struct: added `RendererPixelFormat PixelFormat = RendererPixelFormat::RGBA8;` field.
+  `Reset()` now resets it to `RGBA8`.
+- `RendererResourceInternal_t` class: declared the new `AttachResource` overload
+  `virtual void AttachResource(const void* data, uint32_t width, uint32_t height, RendererPixelFormat format);`
+
+### RendererResourceInternal.cpp changes:
+- Old `AttachResource(data, w, h)` now delegates to `AttachResource(data, w, h, RendererPixelFormat::RGBA8)` — zero behaviour change for existing callers.
+- New `AttachResource(data, w, h, format)` stores the format in `_RendererResource.PixelFormat`.
+- `GetResourceId()`: when building `RendererTextureLoadParameter_t`, copies `loadParameter.PixelFormat = _RendererResource.PixelFormat`.
+
+### src/RendererHookInternal.h changes:
+- `RendererTextureLoadParameter_t` struct: added `RendererPixelFormat PixelFormat = RendererPixelFormat::RGBA8;` field so it can carry the format from the resource through the load queue to the backend.
+
+**Why:** The format needs to flow from `AttachResource()` → internal state → load parameter → backend `_LoadResources()`. Every layer in the chain must store and forward it.
+
+---
+
+## 8. DX11 Backend — FP16 Texture Creation
+
+**File:** src/Windows/DX11Hook.cpp
+
+### Changes:
+- `ValidTexture_t` struct: added `RendererPixelFormat PixelFormat;` field.
+- `_LoadResources()` — where GPU textures are created:
+  - Computes `bool is_fp16 = (tex.PixelFormat == RendererPixelFormat::RGBA16F);`
+  - `DXGI_FORMAT fmt = is_fp16 ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;`
+  - `int bpp = is_fp16 ? 8 : 4;`
+  - `D3D11_TEXTURE2D_DESC.Format = fmt;`
+  - `D3D11_SUBRESOURCE_DATA.SysMemPitch = tex.Width * bpp;`
+  - `D3D11_SHADER_RESOURCE_VIEW_DESC.Format = fmt;`
+
+**Why:** DX11 needs to know the exact DXGI format to create the texture and SRV. FP16 uses `R16G16B16A16_FLOAT` (8 bytes/pixel), while the old path uses `R8G8B8A8_UNORM` (4 bytes/pixel). The subresource pitch must also match.
+
+---
+
+## 9. DX12 Backend — FP16 Texture Creation
+
+**File:** src/Windows/DX12Hook.cpp
+
+### Changes:
+- `ValidTexture_t` struct: added `RendererPixelFormat PixelFormat;` field.
+- `_LoadResources()`:
+  - Computes `is_fp16`, `fmt`, `bpp` (same logic as DX11).
+  - Upload heap allocation: `uploadPitch` and `uploadSize` use `bpp` instead of hardcoded 4.
+  - `memcpy` row loop: source stride uses `tex.Width * bpp`.
+  - `D3D12_PLACED_SUBRESOURCE_FOOTPRINT.Format = fmt;` and `.RowPitch` uses `bpp`.
+  - `D3D12_RESOURCE_DESC.Format = fmt;`
+  - `D3D12_SHADER_RESOURCE_VIEW_DESC.Format = fmt;`
+
+**Why:** DX12 has a more complex upload path (staging buffer → GPU copy). Every size/pitch calculation and format field must be consistent with the actual pixel size.
+
+---
+
+## 10. Vulkan Backend — FP16 Texture Creation
+
+**File:** src/Windows/VulkanHook.cpp
+
+### Changes:
+- `ValidTexture_t` struct: added `RendererPixelFormat PixelFormat;` field.
+- `_LoadResources()`:
+  - `t.Size = t.Width * t.Height * ((param.PixelFormat == RendererPixelFormat::RGBA16F) ? 8 : 4);`
+  - `t.PixelFormat = param.PixelFormat;`
+  - Computed `VkFormat vkFmt = (tex.PixelFormat == RendererPixelFormat::RGBA16F) ? VK_FORMAT_R16G16B16A16_SFLOAT : VK_FORMAT_R8G8B8A8_UNORM;`
+  - `VkImageCreateInfo.format = vkFmt;` (was hardcoded `VK_FORMAT_R8G8B8A8_UNORM`)
+  - `VkImageViewCreateInfo.format = vkFmt;` (was hardcoded `VK_FORMAT_R8G8B8A8_UNORM`)
+
+**Why:** Vulkan requires the image and image-view formats to match the actual pixel data. The staging buffer size must also be correct (8 bytes/pixel for FP16).
+
+---
+
+## 11. OpenGL Backend — FP16 Texture Creation
+
+**File:** src/Windows/OpenGLHook.cpp
+
+### Changes:
+- `ValidTexture_t` struct: added `RendererPixelFormat PixelFormat;` field.
+- Construction: `t.PixelFormat = param.PixelFormat;`
+- `_LoadResources()` — `glTexImage2D` call:
+  ```cpp
+  if (tex.PixelFormat == RendererPixelFormat::RGBA16F)
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, tex.Width, tex.Height, 0, GL_RGBA, GL_HALF_FLOAT, tex.Data);
+  else
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex.Width, tex.Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex.Data);
+  ```
+
+**Why:** OpenGL's `glTexImage2D` internal format and pixel type must match: `GL_RGBA16F` + `GL_HALF_FLOAT` for FP16, `GL_RGBA` + `GL_UNSIGNED_BYTE` for RGBA8.
+
+---
+
+## Summary of FP16 patch
+
+All four graphics backends (DX11, DX12, Vulkan, OpenGL) now support creating textures from either RGBA8 or RGBA16F pixel data. The format flows through the public API (`RendererPixelFormat` enum → `AttachResource` overload) → internal resource state → load parameter → backend `_LoadResources()`. Existing callers that use the 3-argument `AttachResource(data, w, h)` are unaffected — they default to RGBA8 as before.
