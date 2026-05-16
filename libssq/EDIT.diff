@@ -1,0 +1,13 @@
+diff --git a/src/error.c b/src/error.c
+index d3f171f..f7d58da 100644
+--- a/src/error.c
++++ b/src/error.c
+@@ -33,7 +33,7 @@ void ssq_error_set_from_wsa(SSQ_ERROR *error) {
+         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+         error->message,
+         SSQ_ERROR_MESSAGE_SIZE,
+-        NULL,
++        NULL
+     );
+ }
+ #endif /* _WIN32 */

@@ -2,7 +2,7 @@
 
 https://gitlab.xiph.org/xiph/opus
 
-VERSION: https://gitlab.xiph.org/xiph/opus/-/releases/v1.6.1
+VERSION: https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
 
 #### LICENSE
 
