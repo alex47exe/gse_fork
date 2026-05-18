@@ -66,13 +66,29 @@ env:
   THIRD_PARTY_BASE_DIR: "third-party"
 
 jobs:
+  resolve-ref:
+    name: "Resolve build commit SHA"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      sha: ${{ steps.build_ref.outputs.sha }}
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit || inputs.branch || github.ref }}
+      - name: "Capture build commit SHA"
+        id: "build_ref"
+        shell: "bash"
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
   emu-win-all-vs2026:
     name: "Emu win all (VS2026)"
+    needs: ["resolve-ref"]
     if: ${{ !cancelled() && (inputs.vs_version == '' || inputs.vs_version == 'vs2026') }}
     uses: "./.github/workflows/emu-build-all-win.yml"
     with:
       branch: ${{ inputs.branch || 'dev' }}
-      commit: ${{ inputs.commit || '' }}
+      commit: ${{ needs.resolve-ref.outputs.sha }}
       rebuild_ssq: ${{ inputs.rebuild_ssq || false }}
       rebuild_zlib: ${{ inputs.rebuild_zlib || false }}
       rebuild_mbedtls: ${{ inputs.rebuild_mbedtls || false }}
@@ -85,11 +101,12 @@ jobs:
 
   emu-win-all-vs22:
     name: "Emu win all (VS2022)"
+    needs: ["resolve-ref"]
     if: ${{ !cancelled() && inputs.vs_version == 'vs2022' }}
     uses: "./.github/workflows/emu-build-all-win-vs22.yml"
     with:
       branch: ${{ inputs.branch || 'dev' }}
-      commit: ${{ inputs.commit || '' }}
+      commit: ${{ needs.resolve-ref.outputs.sha }}
       rebuild_ssq: ${{ inputs.rebuild_ssq || false }}
       rebuild_zlib: ${{ inputs.rebuild_zlib || false }}
       rebuild_mbedtls: ${{ inputs.rebuild_mbedtls || false }}
@@ -101,7 +118,7 @@ jobs:
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
 
   emu-win-prep:
-    needs: ["emu-win-all-vs2026", "emu-win-all-vs22"]
+    needs: ["resolve-ref", "emu-win-all-vs2026", "emu-win-all-vs22"]
     if: ${{ !cancelled() }}
     runs-on: "windows-2025-vs2026"
     steps:
@@ -109,7 +126,7 @@ jobs:
       - name: "Checkout branch"
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.commit || inputs.branch || 'dev' }}
+          ref: ${{ needs.resolve-ref.outputs.sha }}
 
       - name: "Capture build commit SHA"
         id: "build_ref"
@@ -212,11 +229,12 @@ jobs:
 
   emu-linux-all:
     name: "Emu linux all"
+    needs: ["resolve-ref"]
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-build-all-linux.yml"
     with:
       branch: ${{ inputs.branch || 'dev' }}
-      commit: ${{ inputs.commit || '' }}
+      commit: ${{ needs.resolve-ref.outputs.sha }}
       rebuild_ssq: ${{ inputs.rebuild_ssq || false }}
       rebuild_zlib: ${{ inputs.rebuild_zlib || false }}
       rebuild_mbedtls: ${{ inputs.rebuild_mbedtls || false }}
@@ -228,14 +246,14 @@ jobs:
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
 
   emu-linux-prep:
-    needs: ["emu-linux-all"]
+    needs: ["resolve-ref", "emu-linux-all"]
     runs-on: "ubuntu-24.04"
     steps:
       # we need branch because it has package scripts
       - name: "Checkout branch"
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.commit || inputs.branch || 'dev' }}
+          ref: ${{ needs.resolve-ref.outputs.sha }}
 
       - name: "Capture build commit SHA"
         id: "build_ref"
