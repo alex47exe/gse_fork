@@ -167,17 +167,16 @@ jobs:
         shell: "cmd"
         working-directory: "${{ github.workspace }}"
         run: |
-          git config --local core.autocrlf false
           git config --system core.autocrlf false
           git config --global core.autocrlf false
 
       # ensure we have msbuild
       - name: "Add MSBuild to PATH"
-        uses: microsoft/setup-msbuild@v3
+        uses: microsoft/setup-msbuild@v2
 
       # clone branch
       - name: "Checkout branch"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit || inputs.branch || 'dev' }}
 
@@ -248,13 +247,13 @@ jobs:
 
       # extra helpers/tools, these are not built inside the deps build dir
       - name: "Clone third-party build helpers (common/win)"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/common/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/common/win"
 
       - name: "Clone third-party deps (build/win)"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
@@ -279,7 +278,7 @@ jobs:
 
       # upload artifact/package to github Actions
       - name: "Upload target package"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: "emu-win-${{ matrix.prj }}-${{ matrix.cfg }}-${{ matrix.arch }}-${{ steps.build_ref.outputs.sha }}"
           path: "build/win"

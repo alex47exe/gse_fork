@@ -198,27 +198,27 @@ jobs:
       # checkout and clone sources only when at least one dep needs building
       - name: "Checkout branch"
         if: steps.needs-build.outputs.needed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit || inputs.branch || 'dev' }}
 
       - name: "Clone third-party deps (common/linux)"
         if: steps.needs-build.outputs.needed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/common/linux"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/common/linux"
 
       - name: "Clone third-party deps (deps/linux)"
         if: steps.needs-build.outputs.needed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/deps/linux"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/linux"
 
       - name: "Clone third-party deps (deps/common)"
         if: steps.needs-build.outputs.needed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/deps/common"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/common"

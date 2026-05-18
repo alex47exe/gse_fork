@@ -155,7 +155,7 @@ jobs:
     steps:
       # clone branch
       - name: "Checkout branch"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit || inputs.branch || 'dev' }}
 
@@ -226,13 +226,13 @@ jobs:
 
       # extra helpers/tools, these are not built inside the deps build dir
       - name: "Clone third-party build helpers (common/linux)"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/common/linux"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/common/linux"
 
       - name: "Clone third-party build helpers (build/linux)"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: "third-party/build/linux"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/linux"
@@ -284,7 +284,7 @@ jobs:
 
       # upload artifact/package to github Actions
       - name: "Upload target package"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: "emu-linux-${{ matrix.prj }}-${{ matrix.cfg }}-${{ matrix.arch }}-${{ steps.build_ref.outputs.sha }}"
           path: "build/linux"
