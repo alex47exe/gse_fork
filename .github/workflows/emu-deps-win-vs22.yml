@@ -137,7 +137,7 @@ jobs:
           common_win_sha=$(git rev-parse HEAD:third-party/common/win)
           deps_win_sha=$(git rev-parse HEAD:third-party/deps/win)
           deps_common_sha=$(git rev-parse HEAD:third-party/deps/common)
-          echo "value=${branch}-$(echo ${deps_common_sha} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "value=${branch}-${deps_common_sha:0:7}" >> $GITHUB_OUTPUT
           echo "common_win_sha=${common_win_sha}" >> $GITHUB_OUTPUT
           echo "deps_win_sha=${deps_win_sha}" >> $GITHUB_OUTPUT
           echo "deps_common_sha=${deps_common_sha}" >> $GITHUB_OUTPUT
@@ -149,6 +149,8 @@ jobs:
         with:
           key: "deps-win-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
           restore-keys: |
+            deps-win-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-
+            deps-win-${{ env.PREMAKE_ACTION }}-
             emu-deps-win-all-${{ env.PREMAKE_ACTION }}-
             emu-deps-win-all-${{ env.PREMAKE_ACTION }}
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"

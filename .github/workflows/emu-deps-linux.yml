@@ -129,7 +129,7 @@ jobs:
           common_linux_sha=$(git rev-parse HEAD:third-party/common/linux)
           deps_linux_sha=$(git rev-parse HEAD:third-party/deps/linux)
           deps_common_sha=$(git rev-parse HEAD:third-party/deps/common)
-          echo "value=${branch}-$(echo ${deps_common_sha} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "value=${branch}-${deps_common_sha:0:7}" >> $GITHUB_OUTPUT
           echo "common_linux_sha=${common_linux_sha}" >> $GITHUB_OUTPUT
           echo "deps_linux_sha=${deps_linux_sha}" >> $GITHUB_OUTPUT
           echo "deps_common_sha=${deps_common_sha}" >> $GITHUB_OUTPUT
@@ -141,6 +141,8 @@ jobs:
         with:
           key: "deps-linux-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
           restore-keys: |
+            deps-linux-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-
+            deps-linux-${{ env.PREMAKE_ACTION }}-
             emu-deps-linux-all-${{ env.PREMAKE_ACTION }}-
             emu-deps-linux-all-${{ env.PREMAKE_ACTION }}
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
