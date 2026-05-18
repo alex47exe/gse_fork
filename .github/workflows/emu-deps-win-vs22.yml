@@ -134,8 +134,13 @@ jobs:
         shell: "bash"
         run: |
           branch="${{ inputs.branch || 'dev' }}"
-          deps_sha=$(git rev-parse --short HEAD:third-party/deps/common)
-          echo "value=${branch}-${deps_sha}" >> $GITHUB_OUTPUT
+          common_win_sha=$(git rev-parse HEAD:third-party/common/win)
+          deps_win_sha=$(git rev-parse HEAD:third-party/deps/win)
+          deps_common_sha=$(git rev-parse HEAD:third-party/deps/common)
+          echo "value=${branch}-$(echo ${deps_common_sha} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "common_win_sha=${common_win_sha}" >> $GITHUB_OUTPUT
+          echo "deps_win_sha=${deps_win_sha}" >> $GITHUB_OUTPUT
+          echo "deps_common_sha=${deps_common_sha}" >> $GITHUB_OUTPUT
 
       - name: "Restore combined deps cache"
         id: "cache-deps-restore"
@@ -182,21 +187,21 @@ jobs:
         if: steps.needs-build.outputs.needed == 'true'
         uses: actions/checkout@v6
         with:
-          ref: "third-party/common/win"
+          ref: "${{ steps.cache_key.outputs.common_win_sha }}"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/common/win"
 
       - name: "Clone third-party deps (deps/win)"
         if: steps.needs-build.outputs.needed == 'true'
         uses: actions/checkout@v6
         with:
-          ref: "third-party/deps/win"
+          ref: "${{ steps.cache_key.outputs.deps_win_sha }}"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
 
       - name: "Clone third-party deps (deps/common)"
         if: steps.needs-build.outputs.needed == 'true'
         uses: actions/checkout@v6
         with:
-          ref: "third-party/deps/common"
+          ref: "${{ steps.cache_key.outputs.deps_common_sha }}"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/common"
 
       # per-dep build steps (only run when cache missed or force-rebuild requested)
