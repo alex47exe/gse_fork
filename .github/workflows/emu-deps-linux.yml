@@ -134,10 +134,10 @@ jobs:
         continue-on-error: true
         uses: actions/cache/restore@v5
         with:
-          key: "deps-linux-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
+          key: "emu-deps-linux-all-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
           restore-keys: |
-            deps-linux-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-
-            deps-linux-${{ env.PREMAKE_ACTION }}-
+            emu-deps-linux-all-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-
+            emu-deps-linux-all-${{ env.PREMAKE_ACTION }}-
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
 
       # determine if any dep needs (re)building
