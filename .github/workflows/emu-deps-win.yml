@@ -134,7 +134,7 @@ jobs:
         shell: "bash"
         run: |
           branch="${{ inputs.branch || 'dev' }}"
-          deps_sha=$(git ls-remote origin refs/heads/third-party/deps/common | sha256sum | cut -c1-7)
+          deps_sha=$(git rev-parse --short HEAD:third-party/deps/common)
           echo "value=${branch}-${deps_sha}" >> $GITHUB_OUTPUT
 
       - name: "Restore combined deps cache"
@@ -144,8 +144,8 @@ jobs:
         with:
           key: "deps-win-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
           restore-keys: |
-            deps-win-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-
-            deps-win-${{ env.PREMAKE_ACTION }}-
+            emu-deps-win-all-${{ env.PREMAKE_ACTION }}-
+            emu-deps-win-all-${{ env.PREMAKE_ACTION }}
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
 
       # determine if any dep needs (re)building
