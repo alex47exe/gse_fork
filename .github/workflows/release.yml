@@ -71,6 +71,7 @@ jobs:
     runs-on: "ubuntu-24.04"
     outputs:
       sha: ${{ steps.build_ref.outputs.sha }}
+      deps_sha: ${{ steps.deps_ref.outputs.sha }}
     steps:
       - name: "Checkout"
         uses: actions/checkout@v6
@@ -80,6 +81,15 @@ jobs:
         id: "build_ref"
         shell: "bash"
         run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+      - name: "Checkout deps (common)"
+        uses: actions/checkout@v6
+        with:
+          ref: "third-party/deps/common"
+          path: "tmp-deps-common"
+      - name: "Capture deps commit SHA"
+        id: "deps_ref"
+        shell: "bash"
+        run: echo "sha=$(git -C tmp-deps-common rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
   emu-win-all-vs2026:
     name: "Emu win all (VS2026)"

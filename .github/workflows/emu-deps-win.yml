@@ -129,12 +129,23 @@ jobs:
         with:
           ref: ${{ inputs.commit || inputs.branch || 'dev' }}
 
+      - name: "Compute cache key suffix"
+        id: "cache_key"
+        shell: "bash"
+        run: |
+          branch="${{ inputs.branch || 'dev' }}"
+          deps_sha=$(git ls-remote origin refs/heads/third-party/deps/common | sha256sum | cut -c1-7)
+          echo "value=${branch}-${deps_sha}" >> $GITHUB_OUTPUT
+
       - name: "Restore combined deps cache"
         id: "cache-deps-restore"
         continue-on-error: true
         uses: actions/cache/restore@v5
         with:
-          key: "emu-deps-win-all-${{ env.PREMAKE_ACTION }}"
+          key: "deps-win-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
+          restore-keys: |
+            deps-win-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-
+            deps-win-${{ env.PREMAKE_ACTION }}-
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
 
       # determine if any dep needs (re)building
@@ -273,11 +284,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh cache delete "emu-deps-win-all-${{ env.PREMAKE_ACTION }}" --repo "${{ github.repository }}" || true
+          gh cache delete "emu-deps-win-all-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}" --repo "${{ github.repository }}" || true
 
       - name: "Save combined deps cache"
         if: steps.needs-build.outputs.needed == 'true'
         uses: actions/cache/save@v5
         with:
-          key: "emu-deps-win-all-${{ env.PREMAKE_ACTION }}"
+          key: "emu-deps-win-all-${{ env.PREMAKE_ACTION }}-${{ steps.cache_key.outputs.value }}"
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
