@@ -47,6 +47,10 @@ on:
         description: 'Force rebuild sdl (ignore cache)'
         type: boolean
         default: false
+      deps_sha:
+        description: 'Short SHA of third-party/deps/common (leave empty to compute at runtime)'
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       branch:
@@ -125,6 +129,7 @@ jobs:
       rebuild_opus: ${{ inputs.rebuild_opus || false }}
       rebuild_portaudio: ${{ inputs.rebuild_portaudio || false }}
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
+      deps_sha: ${{ inputs.deps_sha || '' }}
 
   gen-proto:
     name: "Generate proto files - *.pb.cc, *.pb.h"
@@ -154,7 +159,9 @@ jobs:
       - name: "Restore combined deps cache"
         uses: actions/cache/restore@v5
         with:
-          key: "emu-deps-win-all-${{ env.PREMAKE_ACTION }}"
+          key: "deps-win-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-${{ inputs.deps_sha }}"
+          restore-keys: |
+            deps-win-${{ env.PREMAKE_ACTION }}-
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
           fail-on-cache-miss: true
 
@@ -242,7 +249,9 @@ jobs:
       - name: "Restore combined deps cache"
         uses: actions/cache/restore@v5
         with:
-          key: "emu-deps-win-all-${{ env.PREMAKE_ACTION }}"
+          key: "deps-win-${{ env.PREMAKE_ACTION }}-${{ inputs.branch || 'dev' }}-${{ inputs.deps_sha }}"
+          restore-keys: |
+            deps-win-${{ env.PREMAKE_ACTION }}-
           path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
           fail-on-cache-miss: true
 

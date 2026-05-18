@@ -99,6 +99,7 @@ jobs:
     with:
       branch: ${{ inputs.branch || 'dev' }}
       commit: ${{ needs.resolve-ref.outputs.sha }}
+      deps_sha: ${{ needs.resolve-ref.outputs.deps_sha }}
       rebuild_ssq: ${{ inputs.rebuild_ssq || false }}
       rebuild_zlib: ${{ inputs.rebuild_zlib || false }}
       rebuild_mbedtls: ${{ inputs.rebuild_mbedtls || false }}
@@ -117,6 +118,7 @@ jobs:
     with:
       branch: ${{ inputs.branch || 'dev' }}
       commit: ${{ needs.resolve-ref.outputs.sha }}
+      deps_sha: ${{ needs.resolve-ref.outputs.deps_sha }}
       rebuild_ssq: ${{ inputs.rebuild_ssq || false }}
       rebuild_zlib: ${{ inputs.rebuild_zlib || false }}
       rebuild_mbedtls: ${{ inputs.rebuild_mbedtls || false }}
@@ -245,6 +247,7 @@ jobs:
     with:
       branch: ${{ inputs.branch || 'dev' }}
       commit: ${{ needs.resolve-ref.outputs.sha }}
+      deps_sha: ${{ needs.resolve-ref.outputs.deps_sha }}
       rebuild_ssq: ${{ inputs.rebuild_ssq || false }}
       rebuild_zlib: ${{ inputs.rebuild_zlib || false }}
       rebuild_mbedtls: ${{ inputs.rebuild_mbedtls || false }}

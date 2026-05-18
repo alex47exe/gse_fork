@@ -47,6 +47,10 @@ on:
         description: 'Force rebuild sdl (ignore cache)'
         type: boolean
         default: false
+      deps_sha:
+        description: 'Short SHA of third-party/deps/common (leave empty to compute at runtime)'
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       branch:
@@ -137,7 +141,12 @@ jobs:
           common_win_sha=$(git rev-parse HEAD:third-party/common/win)
           deps_win_sha=$(git rev-parse HEAD:third-party/deps/win)
           deps_common_sha=$(git rev-parse HEAD:third-party/deps/common)
-          echo "value=${branch}-${deps_common_sha:0:7}" >> $GITHUB_OUTPUT
+          if [[ -n "${{ inputs.deps_sha }}" ]]; then
+            deps_common_short="${{ inputs.deps_sha }}"
+          else
+            deps_common_short="${deps_common_sha:0:7}"
+          fi
+          echo "value=${branch}-${deps_common_short}" >> $GITHUB_OUTPUT
           echo "common_win_sha=${common_win_sha}" >> $GITHUB_OUTPUT
           echo "deps_win_sha=${deps_win_sha}" >> $GITHUB_OUTPUT
           echo "deps_common_sha=${deps_common_sha}" >> $GITHUB_OUTPUT
