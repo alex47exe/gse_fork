@@ -138,6 +138,11 @@ newoption {
     trigger = "64-build",
     description = "Build for 64-bit arch",
 }
+newoption {
+    category = "build",
+    trigger = "debug-build",
+    description = "Build dependencies with debug overlay logging settings",
+}
 
 newoption {
     category = "build",
@@ -246,8 +251,9 @@ end
 
 -- ############## common CMAKE args ##############
 -- https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_FLAGS_CONFIG.html#variable:CMAKE_%3CLANG%3E_FLAGS_%3CCONFIG%3E
+local deps_build_config = _OPTIONS["debug-build"] and "Debug" or "Release"
 local cmake_common_defs = {
-    'CMAKE_BUILD_TYPE=Release',
+    'CMAKE_BUILD_TYPE=' .. deps_build_config,
     'CMAKE_POSITION_INDEPENDENT_CODE=True',
     'BUILD_SHARED_LIBS=OFF',
     'CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded',
@@ -409,7 +415,7 @@ local function cmake_build(dep_folder, is_32, extra_cmd_defs, c_flags_init, cxx_
     if _OPTIONS['j'] then
         parallel_str = parallel_str .. ' ' .. _OPTIONS['j']
     end
-    local ok = os.execute(mycmake .. ' --build "' .. build_dir .. '" --config Release' .. parallel_str .. verbose_build_str)
+    local ok = os.execute(mycmake .. ' --build "' .. build_dir .. '" --config ' .. deps_build_config .. parallel_str .. verbose_build_str)
     if not ok then
         error("failed to build")
         return
@@ -469,6 +475,12 @@ if _OPTIONS["ext-mbedtls"] or _OPTIONS["all-ext"] then
     table.insert(deps_to_extract, { 'mbedtls/mbedtls.tar.gz', 'mbedtls' })
 end
 if _OPTIONS["ext-ingame_overlay"] or _OPTIONS["all-ext"] then
+    -- NOTE: after replacing ingame_overlay.tar.gz with a newer upstream snapshot,
+    -- reapply these local patches manually:
+    --   1) sRGB format detection patch
+    --   2) FP16 texture support patch
+    --   3) DXGI swap-chain pointer exposure patch
+    -- and then update PATCH.txt/PATCHES.txt with any conflict resolutions/adaptations.
     table.insert(deps_to_extract, { 'ingame_overlay/ingame_overlay.tar.gz', 'ingame_overlay' })
 end
 if _OPTIONS["ext-opus"] or _OPTIONS["all-ext"] then
@@ -756,7 +768,8 @@ if _OPTIONS["build-ingame_overlay"] or _OPTIONS["all-build"] then
     local ingame_overlay_common_defs = {
         'IMGUI_USER_CONFIG="' .. overaly_imgui_cfg_file:gsub('\\', '/') .. '"', -- ensure we use '/' because this lib doesn't handle it well
         'INGAMEOVERLAY_USE_SYSTEM_LIBRARIES=OFF',
-        'INGAMEOVERLAY_USE_SPDLOG=OFF',
+        'INGAMEOVERLAY_USE_SPDLOG=' .. (_OPTIONS["debug-build"] and 'ON' or 'OFF'),
+        'INGAMEOVERLAY_LOG_LEVEL=' .. (_OPTIONS["debug-build"] and 'trace' or 'off'),
         'INGAMEOVERLAY_BUILD_TESTS=OFF',
         'INGAMEOVERLAY_DYNAMIC_RUNTIME=OFF',
         --'USE_MSVC_RUNTIME_LIBRARY_DLL=OFF', -- Should we?
