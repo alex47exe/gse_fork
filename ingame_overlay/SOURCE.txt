@@ -2,7 +2,8 @@
 
 https://github.com/Nemirtingas/ingame_overlay
 
-VERSION: https://github.com/Nemirtingas/ingame_overlay/tree/83c3a63de06890565e494d8b8c96c93d6e036152 (branch: fix/opengl-hook-hang)
+VERSION: https://github.com/alex47exe/ingame_overlay/tree/e49ad8f70890b50324e39c2b558514d28c1b76c7
+FORK_OF: https://github.com/Nemirtingas/ingame_overlay/tree/eb0638034d29781f5e6678c4273546c9395a7639
 
 #### LICENSE
 
