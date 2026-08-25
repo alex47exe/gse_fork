@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 # generate_ingame_overlay_patches.sh
 #
-# Generate (or regenerate) the numbered .patch files in
-# tools/ingame_overlay_patches/ by diffing the current patched tarball
-# against the unmodified upstream source at the commit recorded in SOURCE.txt.
+# Generate (or regenerate) the .patch files in tools/ingame_overlay_patches/
+# by diffing the current patched tarball against the unmodified upstream
+# source at the commit recorded in SOURCE.txt.
+#
+# A single combined patch file is produced:
+#   tools/ingame_overlay_patches/01-gse-fork-patches.patch
+#
+# This file covers all three GSE-fork patch tracks:
+#   - GetDXGISwapChain() virtual method (DX10/11/12 hooks)
+#   - sRGB swapchain format detection (RendererHook.h, DX11/12, Vulkan)
+#   - FP16 (RGBA16F) texture upload support (all backends)
+#
+# A single patch is required because several files (DX11Hook.cpp, DX12Hook.cpp,
+# VulkanHook.cpp) carry changes from multiple tracks; splitting by file would
+# produce overlapping hunks that cannot be applied independently.
 #
 # Run from the repository root:
 #   ./tools/generate_ingame_overlay_patches.sh
 #
 # Requirements: git, tar
 #
-# After running, review the generated .patch files, then commit them.
-# The premake5-deps.lua build will apply them automatically on the next
-# --ext-ingame_overlay / --all-ext run.
+# After running, review the generated patch, then commit
+# tools/ingame_overlay_patches/ to the PR branch.
 
 set -euo pipefail
 
@@ -48,8 +59,8 @@ echo "Extracting patched tarball ..."
 mkdir -p "$TMP_DIR/patched"
 tar -xzf "$TARBALL" -C "$TMP_DIR/patched" --strip-components=1
 
-# ── copy patched files into upstream tree and stage ──────────────────────────
-echo "Computing diffs ..."
+# ── overlay patched files onto upstream tree and stage ─────────────────────────
+echo "Computing diff ..."
 rsync -a --existing "$TMP_DIR/patched/include/" "$TMP_DIR/upstream/include/" 2>/dev/null || \
     cp -a "$TMP_DIR/patched/include" "$TMP_DIR/upstream/"
 rsync -a --existing "$TMP_DIR/patched/src/"     "$TMP_DIR/upstream/src/"     2>/dev/null || \
@@ -58,31 +69,14 @@ git -C "$TMP_DIR/upstream" add -A
 
 mkdir -p "$PATCHES_DIR"
 
-# ── patch 01: GetDXGISwapChain ─────────────────────────────────────────────────
-git -C "$TMP_DIR/upstream" diff --cached -- \
-    'src/Windows/DX10Hook.h' 'src/Windows/DX10Hook.cpp' \
-    'src/Windows/DX11Hook.h' 'src/Windows/DX11Hook.cpp' \
-    'src/Windows/DX12Hook.h' 'src/Windows/DX12Hook.cpp' \
-    > "$PATCHES_DIR/01-get-dxgi-swapchain.patch" || true
-
-# ── patch 02: sRGB format detection ────────────────────────────────────────────────
-# RendererHook.h sRGB enum additions + DX11/DX12/Vulkan detection cases
-git -C "$TMP_DIR/upstream" diff --cached -- \
-    'include/InGameOverlay/RendererHook.h' \
-    'src/Windows/VulkanHook.cpp' \
-    > "$PATCHES_DIR/02-srgb-format-detection.patch" || true
-
-# ── patch 03: FP16 texture upload ───────────────────────────────────────────────────
-git -C "$TMP_DIR/upstream" diff --cached -- \
-    'include/InGameOverlay/RendererResource.h' \
-    'src/RendererResourceInternal.h' 'src/RendererResourceInternal.cpp' \
-    'src/RendererHookInternal.h' \
-    'src/Windows/DX11Hook.cpp' 'src/Windows/DX12Hook.cpp' \
-    'src/Windows/VulkanHook.cpp' 'src/Windows/OpenGLHook.cpp' \
-    > "$PATCHES_DIR/03-fp16-texture-upload.patch" || true
+# ── single combined patch covering all three GSE-fork patch tracks ────────────────
+# A single file is used because DX11Hook.cpp, DX12Hook.cpp and VulkanHook.cpp
+# contain changes from multiple tracks; splitting would produce overlapping hunks.
+git -C "$TMP_DIR/upstream" diff --cached \
+    > "$PATCHES_DIR/01-gse-fork-patches.patch"
 
 echo ""
-echo "Patch files written to $PATCHES_DIR:"
+echo "Patch file written to $PATCHES_DIR:"
 ls -lh "$PATCHES_DIR"/*.patch 2>/dev/null || echo "  (none produced)"
 echo ""
-echo "Review the patches, then commit tools/ingame_overlay_patches/ to the PR branch."
+echo "Review the patch, then commit tools/ingame_overlay_patches/ to the PR branch."

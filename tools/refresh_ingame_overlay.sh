@@ -2,8 +2,8 @@
 # refresh_ingame_overlay.sh
 #
 # Fetch the ingame_overlay upstream source at a given commit, apply all local
-# .patch files from third-party/deps/common/ingame_overlay/patches/, and
-# repack as ingame_overlay.tar.gz.
+# .patch files from tools/ingame_overlay_patches/, and repack as
+# ingame_overlay.tar.gz.
 #
 # Usage:
 #   ./tools/refresh_ingame_overlay.sh [--commit SHA] [--upstream URL] [--dry-run]
@@ -102,9 +102,11 @@ git -C "$TMP_DIR/ingame_overlay_src" checkout "$UPSTREAM_COMMIT" -- 2>&1
 
 # ── apply patches ─────────────────────────────────────────────────────────────────────────────
 if [[ -d "$PATCHES_DIR" ]]; then
-    shopt -s nullglob
-    mapfile -t patch_files < <(ls "$PATCHES_DIR"/*.patch 2>/dev/null | sort)
-    shopt -u nullglob
+    # collect .patch files with glob (safe for names with spaces)
+    patch_files=()
+    while IFS= read -r -d '' f; do
+        patch_files+=("$f")
+    done < <(find "$PATCHES_DIR" -maxdepth 1 -name '*.patch' -print0 | sort -z)
 
     if [[ ${#patch_files[@]} -eq 0 ]]; then
         echo "No .patch files found in $PATCHES_DIR — skipping patch step."
