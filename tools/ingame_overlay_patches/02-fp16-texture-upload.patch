@@ -1,0 +1,297 @@
+--- a/include/InGameOverlay/RendererResource.h
++++ b/include/InGameOverlay/RendererResource.h
+@@ -22,6 +22,15 @@
+ namespace InGameOverlay {
+ 
+ /// <summary>
++/// Pixel format for renderer resources.
++/// </summary>
++enum class RendererPixelFormat
++{
++    RGBA8,   // 4 bytes per pixel (default)
++    RGBA16F, // 8 bytes per pixel (FP16 half-float)
++};
++
++/// <summary>
+ /// A renderer resource. It will be tied to the RendererHook that created it. Don't use it if you recycle the renderer hook.
+ /// </summary>
+ class RendererResource_t
+@@ -70,6 +79,10 @@
+     /// <param name="height">The resource height</param>
+     virtual void AttachResource(const void* data, uint32_t width, uint32_t height) = 0;
+     /// <summary>
++    /// Attach a resource with an explicit pixel format (RGBA8 or RGBA16F).
++    /// </summary>
++    virtual void AttachResource(const void* data, uint32_t width, uint32_t height, RendererPixelFormat format) = 0;
++    /// <summary>
+     /// Clears the attached resource. This will NOT delete the resource loaded onto the GPU. Call Unload for that purpose.
+     /// </summary>
+     virtual void ClearAttachedResource() = 0;
+--- a/src/RendererHookInternal.h
++++ b/src/RendererHookInternal.h
+@@ -47,6 +47,7 @@
+     const void* Data;
+     uint32_t Height;
+     uint32_t Width;
++    RendererPixelFormat PixelFormat = RendererPixelFormat::RGBA8;
+ };
+ 
+ struct RendererTextureReleaseParameter_t
+--- a/src/RendererResourceInternal.h
++++ b/src/RendererResourceInternal.h
+@@ -32,12 +32,14 @@
+     std::weak_ptr<RendererTexture_t> RendererResource;
+     uint32_t Width = 0;
+     uint32_t Height = 0;
++    RendererPixelFormat PixelFormat = RendererPixelFormat::RGBA8;
+ 
+     inline void Reset()
+     {
+         RendererResource.reset();
+         Width = 0;
+         Height = 0;
++        PixelFormat = RendererPixelFormat::RGBA8;
+     }
+ };
+ 
+@@ -74,6 +76,7 @@
+     virtual uint32_t Height() const;
+ 
+     virtual void AttachResource(const void* data, uint32_t width, uint32_t height);
++    virtual void AttachResource(const void* data, uint32_t width, uint32_t height, RendererPixelFormat format);
+ 
+     virtual void ClearAttachedResource();
+ 
+--- a/src/RendererResourceInternal.cpp
++++ b/src/RendererResourceInternal.cpp
+@@ -71,6 +71,7 @@
+                     loadParameter.Data = _Data;
+                     loadParameter.Height = _RendererResource.Height;
+                     loadParameter.Width = _RendererResource.Width;
++                    loadParameter.PixelFormat = _RendererResource.PixelFormat;
+                     r->LoadStatus = RendererTextureStatus_e::Loading;
+                     _RendererHook->LoadImageResource(loadParameter);
+                 }
+@@ -111,6 +112,11 @@
+ 
+ void RendererResourceInternal_t::AttachResource(const void* data, uint32_t width, uint32_t height)
+ {
++    AttachResource(data, width, height, RendererPixelFormat::RGBA8);
++}
++
++void RendererResourceInternal_t::AttachResource(const void* data, uint32_t width, uint32_t height, RendererPixelFormat format)
++{
+     if (IsLoaded())
+         _OldRendererResource = _RendererResource;
+ 
+@@ -118,6 +124,7 @@
+     _Data = data;
+     _RendererResource.Width = width;
+     _RendererResource.Height = height;
++    _RendererResource.PixelFormat = format;
+ }
+ 
+ void RendererResourceInternal_t::ClearAttachedResource()
+--- a/src/Windows/DX11Hook.cpp
++++ b/src/Windows/DX11Hook.cpp
+@@ -344,6 +344,7 @@
+         const void* Data;
+         uint32_t Width;
+         uint32_t Height;
++        RendererPixelFormat PixelFormat;
+     };
+ 
+     std::vector<ValidTexture_t> validResources;
+@@ -362,7 +363,8 @@
+             r,
+             param.Data,
+             param.Width,
+-            param.Height
++            param.Height,
++            param.PixelFormat
+         });
+     }
+ 
+@@ -371,12 +373,16 @@
+ 
+     for (auto& tex : validResources)
+     {
++        const bool is_fp16 = (tex.PixelFormat == RendererPixelFormat::RGBA16F);
++        const DXGI_FORMAT fmt = is_fp16 ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
++        const uint32_t bpp = is_fp16 ? 8 : 4;
++
+         D3D11_TEXTURE2D_DESC desc{};
+         desc.Width = tex.Width;
+         desc.Height = tex.Height;
+         desc.MipLevels = 1;
+         desc.ArraySize = 1;
+-        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
++        desc.Format = fmt;
+         desc.SampleDesc.Count = 1;
+         desc.Usage = D3D11_USAGE_DEFAULT;
+         desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+@@ -384,7 +390,7 @@
+ 
+         D3D11_SUBRESOURCE_DATA sub{};
+         sub.pSysMem = tex.Data;
+-        sub.SysMemPitch = tex.Width * 4;
++        sub.SysMemPitch = tex.Width * bpp;
+ 
+         ID3D11Texture2D* texture = nullptr;
+         HRESULT hr = _Device->CreateTexture2D(&desc, &sub, &texture);
+--- a/src/Windows/DX12Hook.cpp
++++ b/src/Windows/DX12Hook.cpp
+@@ -614,6 +614,7 @@
+         const void* Data;
+         uint32_t Width;
+         uint32_t Height;
++        RendererPixelFormat PixelFormat;
+     };
+ 
+     std::vector<ValidTexture_t> validResources;
+@@ -630,7 +631,8 @@
+             std::static_pointer_cast<DX12Texture_t>(r),
+             param.Data,
+             param.Width,
+-            param.Height
++            param.Height,
++            param.PixelFormat
+         });
+     }
+ 
+@@ -641,7 +643,8 @@
+         rowPitches.reserve(validResources.size());
+         for (auto& tex : validResources)
+         {
+-            UINT pitch = (tex.Width * 4 + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u) & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u);
++            const uint32_t bpp = (tex.PixelFormat == RendererPixelFormat::RGBA16F) ? 8 : 4;
++            UINT pitch = (tex.Width * bpp + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u) & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u);
+             rowPitches.push_back(pitch);
+             totalUploadSize += tex.Height * pitch;
+         }
+@@ -675,19 +678,21 @@
+         {
+             auto& tex = validResources[i];
+             UINT pitch = rowPitches[i];
++            const uint32_t bpp = (tex.PixelFormat == RendererPixelFormat::RGBA16F) ? 8 : 4;
++            const DXGI_FORMAT fmt = (tex.PixelFormat == RendererPixelFormat::RGBA16F) ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
+ 
+             for (uint32_t y = 0; y < tex.Height; ++y)
+             {
+                 memcpy((uint8_t*)mapped + offset + y * pitch,
+-                    (const uint8_t*)tex.Data + y * tex.Width * 4,
+-                    tex.Width * 4);
++                    (const uint8_t*)tex.Data + y * tex.Width * bpp,
++                    tex.Width * bpp);
+             }
+ 
+             D3D12_TEXTURE_COPY_LOCATION srcLoc{};
+             srcLoc.pResource = uploadBuffer;
+             srcLoc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+             srcLoc.PlacedFootprint.Offset = offset;
+-            srcLoc.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
++            srcLoc.PlacedFootprint.Footprint.Format = fmt;
+             srcLoc.PlacedFootprint.Footprint.Width = tex.Width;
+             srcLoc.PlacedFootprint.Footprint.Height = tex.Height;
+             srcLoc.PlacedFootprint.Footprint.Depth = 1;
+@@ -705,6 +710,7 @@
+         for (size_t i = 0; i < validResources.size(); ++i)
+         {
+             auto& tex = validResources[i];
++            const DXGI_FORMAT texFmt = (tex.PixelFormat == RendererPixelFormat::RGBA16F) ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
+ 
+             D3D12_RESOURCE_DESC texDesc{};
+             texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+@@ -712,7 +718,7 @@
+             texDesc.Height = tex.Height;
+             texDesc.DepthOrArraySize = 1;
+             texDesc.MipLevels = 1;
+-            texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
++            texDesc.Format = texFmt;
+             texDesc.SampleDesc.Count = 1;
+             texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+ 
+@@ -738,7 +744,7 @@
+             _ImageCommandList->ResourceBarrier(1, &barrier);
+ 
+             D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+-            srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
++            srvDesc.Format = texFmt;
+             srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+             srvDesc.Texture2D.MipLevels = 1;
+             srvDesc.Texture2D.MostDetailedMip = 0;
+--- a/src/Windows/VulkanHook.cpp
++++ b/src/Windows/VulkanHook.cpp
+@@ -984,6 +984,7 @@
+         uint32_t Height;
+         VkDeviceSize Offset;
+         VkDeviceSize Size;
++        RendererPixelFormat PixelFormat;
+     };
+ 
+     std::vector<ValidTexture_t> validResources;
+@@ -1002,7 +1003,8 @@
+         t.Data = param.Data;
+         t.Width = param.Width;
+         t.Height = param.Height;
+-        t.Size = t.Width * t.Height * 4;
++        t.Size = t.Width * t.Height * ((param.PixelFormat == RendererPixelFormat::RGBA16F) ? 8 : 4);
++        t.PixelFormat = param.PixelFormat;
+ 
+         validResources.push_back(t);
+     }
+@@ -1069,11 +1071,12 @@
+         VkImage image = VK_NULL_HANDLE;
+         VkImageView view = VK_NULL_HANDLE;
+         VkDeviceMemory memory = VK_NULL_HANDLE;
++        const VkFormat vkFmt = (tex.PixelFormat == RendererPixelFormat::RGBA16F) ? VK_FORMAT_R16G16B16A16_SFLOAT : VK_FORMAT_R8G8B8A8_UNORM;
+ 
+         VkImageCreateInfo info{};
+         info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+         info.imageType = VK_IMAGE_TYPE_2D;
+-        info.format = VK_FORMAT_R8G8B8A8_UNORM;
++        info.format = vkFmt;
+         info.extent = { tex.Width, tex.Height, 1 };
+         info.mipLevels = 1;
+         info.arrayLayers = 1;
+@@ -1098,7 +1101,7 @@
+         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+         viewInfo.image = image;
+         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+-        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
++        viewInfo.format = vkFmt;
+         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+         viewInfo.subresourceRange.levelCount = 1;
+         viewInfo.subresourceRange.layerCount = 1;
+--- a/src/Windows/OpenGLHook.cpp
++++ b/src/Windows/OpenGLHook.cpp
+@@ -176,6 +176,7 @@
+         const void* Data;
+         uint32_t Width;
+         uint32_t Height;
++        RendererPixelFormat PixelFormat;
+     };
+ 
+     std::vector<ValidTexture_t> validResources;
+@@ -192,7 +193,8 @@
+             r,
+             param.Data,
+             param.Width,
+-            param.Height
++            param.Height,
++            param.PixelFormat
+         });
+     }
+ 
+@@ -209,7 +211,10 @@
+ 
+             // Upload pixels into texture
+             glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex.Width, tex.Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex.Data);
++            if (tex.PixelFormat == RendererPixelFormat::RGBA16F)
++                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, tex.Width, tex.Height, 0, GL_RGBA, GL_HALF_FLOAT, tex.Data);
++            else
++                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex.Width, tex.Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex.Data);
+ 
+             tex.Resource->LoadStatus = RendererTextureStatus_e::Loaded;
+         }

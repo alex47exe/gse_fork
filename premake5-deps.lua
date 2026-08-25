@@ -469,6 +469,9 @@ if _OPTIONS["ext-mbedtls"] or _OPTIONS["all-ext"] then
     table.insert(deps_to_extract, { 'mbedtls/mbedtls.tar.gz', 'mbedtls' })
 end
 if _OPTIONS["ext-ingame_overlay"] or _OPTIONS["all-ext"] then
+    -- Local ingame_overlay fixes are tracked as unified-diff patch files in
+    -- tools/ingame_overlay_patches/ and are reapplied automatically after
+    -- extraction. This keeps tarball refreshes reproducible.
     table.insert(deps_to_extract, { 'ingame_overlay/ingame_overlay.tar.gz', 'ingame_overlay' })
 end
 if _OPTIONS["ext-opus"] or _OPTIONS["all-ext"] then
@@ -479,6 +482,46 @@ if _OPTIONS["ext-portaudio"] or _OPTIONS["all-ext"] then
 end
 if _OPTIONS["ext-sdl"] or _OPTIONS["all-ext"] then
     table.insert(deps_to_extract, { 'sdl/sdl.tar.gz', 'sdl' })
+end
+
+local function apply_ingame_overlay_patches()
+    local overlay_dir = path.join(deps_dir, 'ingame_overlay')
+    local patches_dir = path.getabsolute(path.join('tools', 'ingame_overlay_patches'), _MAIN_SCRIPT_DIR)
+
+    if not os.isdir(overlay_dir) then
+        error('ingame_overlay extraction dir is missing: ' .. overlay_dir)
+    end
+
+    if not os.isdir(patches_dir) then
+        print('ingame_overlay patches dir missing, skipping: ' .. patches_dir)
+        return
+    end
+
+    local patches = os.matchfiles(path.join(patches_dir, '*.patch'))
+    if #patches == 0 then
+        print('no ingame_overlay patches found in: ' .. patches_dir)
+        return
+    end
+
+    table.sort(patches)
+    for _, patch_file in ipairs(patches) do
+        print('\nprocessing ingame_overlay patch: ' .. patch_file)
+
+        local ok_apply = os.execute('git -C "' .. overlay_dir .. '" apply --check --whitespace=nowarn "' .. patch_file .. '"')
+        if ok_apply then
+            ok_apply = os.execute('git -C "' .. overlay_dir .. '" apply --whitespace=nowarn "' .. patch_file .. '"')
+            if not ok_apply then
+                error('failed to apply ingame_overlay patch: ' .. patch_file)
+            end
+        else
+            local already_applied = os.execute('git -C "' .. overlay_dir .. '" apply --reverse --check --whitespace=nowarn "' .. patch_file .. '"')
+            if already_applied then
+                print('patch already present, skipping: ' .. patch_file)
+            else
+                error('patch does not apply cleanly: ' .. patch_file)
+            end
+        end
+    end
 end
 
 -- start extraction
@@ -533,6 +576,10 @@ for _, dep in pairs(deps_to_extract) do
     --     os.rmdir(inner_folder)
     -- end
 
+end
+
+if _OPTIONS["ext-ingame_overlay"] or _OPTIONS["all-ext"] then
+    apply_ingame_overlay_patches()
 end
 
 
