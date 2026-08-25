@@ -14,7 +14,7 @@ if os.target() == "windows" then
 elseif os.target() == "linux" then
     os_iden = 'linux'
 else
-    error('Unsupported os target: "' .. os.target() .. '"')
+    error('Unsupported os target: "' .. os.target() ..'"')
 end
 
 
@@ -62,11 +62,10 @@ newoption {
     trigger = "all-ext",
     description = "Extract all deps",
 }
-
 newoption {
     category = "extract",
     trigger = "ext-ssq",
-    description = "Extract ssq",
+    description = "Extract libssq",
 }
 newoption {
     category = "extract",
@@ -103,21 +102,13 @@ newoption {
     trigger = "ext-portaudio",
     description = "Extract portaudio",
 }
-
 newoption {
     category = "extract",
     trigger = "ext-sdl",
     description = "Extract sdl",
 }
 
--- build
-newoption {
-    category = "build",
-    trigger = "deps-dir",
-    description = "Base directory to build dependencies inside (if overridden it MUST be absolute)",
-    value = '/absolute/path/to/my-deps-dir/',
-    default = path.getabsolute(path.join('build', 'deps', os_iden, _ACTION), _MAIN_SCRIPT_DIR),
-}
+-- deps build
 newoption {
     category = "build",
     trigger = "all-build",
@@ -125,24 +116,8 @@ newoption {
 }
 newoption {
     category = "build",
-    trigger = "j",
-    description = "Parallel build jobs, by default the max possible",
-}
-newoption {
-    category = "build",
-    trigger = "32-build",
-    description = "Build for 32-bit arch",
-}
-newoption {
-    category = "build",
-    trigger = "64-build",
-    description = "Build for 64-bit arch",
-}
-
-newoption {
-    category = "build",
     trigger = "build-ssq",
-    description = "Build ssq",
+    description = "Build libssq",
 }
 newoption {
     category = "build",
@@ -179,14 +154,49 @@ newoption {
     trigger = "build-portaudio",
     description = "Build portaudio",
 }
-
 newoption {
     category = "build",
     trigger = "build-sdl",
     description = "Build sdl",
 }
+newoption {
+    category = "build",
+    trigger = "32-build",
+    description = "Build for 32-bit arch",
+}
+newoption {
+    category = "build",
+    trigger = "64-build",
+    description = "Build for 64-bit arch",
+}
+newoption {
+    category = "build",
+    trigger = "debug-build",
+    description = "Build dependencies in Debug and enable ingame_overlay trace logging",
+}
 
-local function merge_list(src, dest)
+newoption {
+    category = "build",
+    trigger = "j",
+    description = "Parallel jobs for cmake build",
+    value = 'number',
+    default = nil
+}
+
+newoption {
+    category = "build",
+    trigger = "deps-dir",
+    description = "output dir for all built deps",
+    value = 'path/to/output/dir',
+    default = nil
+}
+
+if not _OPTIONS["deps-dir"] then
+    error('you must provide the --deps-dir option')
+end
+
+
+local function table_copy(src, dest)
     local src_count = #src
     local res = {}
 
@@ -246,15 +256,13 @@ end
 
 -- ############## common CMAKE args ##############
 -- https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_FLAGS_CONFIG.html#variable:CMAKE_%3CLANG%3E_FLAGS_%3CCONFIG%3E
+local deps_build_config = _OPTIONS["debug-build"] and "Debug" or "Release"
 local cmake_common_defs = {
-    'CMAKE_BUILD_TYPE=Release',
+    'CMAKE_BUILD_TYPE=' .. deps_build_config,
     'CMAKE_POSITION_INDEPENDENT_CODE=True',
     'BUILD_SHARED_LIBS=OFF',
     'CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded',
-    "CMAKE_CXX_STANDARD=17",
-
-    -- https://cmake.org/cmake/help/latest/command/install.html
-    'CMAKE_INSTALL_LIBDIR=lib',         -- on Fedora this is set to 'lib64'
+    'CMAKE_INSTALL_LIBDIR=lib',     -- |
     'CMAKE_INSTALL_BINDIR=bin',         -- |_ ensure consistency on different Linux distros
     'CMAKE_INSTALL_INCLUDEDIR=include', -- |_ ensure consistency on different Linux distros
 }
@@ -409,7 +417,7 @@ local function cmake_build(dep_folder, is_32, extra_cmd_defs, c_flags_init, cxx_
     if _OPTIONS['j'] then
         parallel_str = parallel_str .. ' ' .. _OPTIONS['j']
     end
-    local ok = os.execute(mycmake .. ' --build "' .. build_dir .. '" --config Release' .. parallel_str .. verbose_build_str)
+    local ok = os.execute(mycmake .. ' --build "' .. build_dir .. '" --config ' .. deps_build_config .. parallel_str .. verbose_build_str)
     if not ok then
         error("failed to build")
         return
@@ -439,7 +447,6 @@ if os.host() == "linux" then
             return
         end
     end
-
     if not _OPTIONS["custom-cmake"] then
         local ok_chmod, err_chmod = os.chmod(mycmake, "777")
         if not ok_chmod then
@@ -469,6 +476,12 @@ if _OPTIONS["ext-mbedtls"] or _OPTIONS["all-ext"] then
     table.insert(deps_to_extract, { 'mbedtls/mbedtls.tar.gz', 'mbedtls' })
 end
 if _OPTIONS["ext-ingame_overlay"] or _OPTIONS["all-ext"] then
+    -- NOTE: after replacing ingame_overlay.tar.gz with a newer upstream snapshot,
+    -- reapply these local patches manually:
+    --   1) sRGB format detection patch
+    --   2) FP16 texture support patch
+    --   3) DXGI swap-chain pointer exposure patch
+    -- and then update the patch tracking documentation with any conflict resolutions/adaptations.
     table.insert(deps_to_extract, { 'ingame_overlay/ingame_overlay.tar.gz', 'ingame_overlay' })
 end
 if _OPTIONS["ext-opus"] or _OPTIONS["all-ext"] then
@@ -479,6 +492,36 @@ if _OPTIONS["ext-portaudio"] or _OPTIONS["all-ext"] then
 end
 if _OPTIONS["ext-sdl"] or _OPTIONS["all-ext"] then
     table.insert(deps_to_extract, { 'sdl/sdl.tar.gz', 'sdl' })
+end
+
+-- apply ingame_overlay .patch files from tools/ingame_overlay_patches/
+-- patch files must be named NN-<description>.patch (e.g. 01-srgb-detection.patch) so they
+-- are applied in sorted order via 'git apply'
+local function apply_ingame_overlay_patches()
+    local patches_dir = path.join(third_party_dir, '..', 'tools', 'ingame_overlay_patches')
+    patches_dir = path.getabsolute(patches_dir)
+    if not os.isdir(patches_dir) then
+        print('ingame_overlay patches directory not found, skipping: ' .. patches_dir)
+        return
+    end
+
+    local overlay_dir = path.join(deps_dir, 'ingame_overlay')
+    local patches = os.matchfiles(patches_dir .. '/*.patch')
+    if #patches == 0 then
+        print('no .patch files found in: ' .. patches_dir)
+        return
+    end
+
+    -- apply in sorted (numbered) order
+    table.sort(patches)
+    for _, patch_file in ipairs(patches) do
+        print('\napplying ingame_overlay patch: ' .. patch_file)
+        local ok = os.execute('git -C "' .. overlay_dir .. '" apply --whitespace=nowarn "' .. patch_file .. '"')
+        if not ok then
+            error('patch application failed: ' .. patch_file)
+        end
+    end
+    print('all ingame_overlay patches applied')
 end
 
 -- start extraction
@@ -536,6 +579,11 @@ for _, dep in pairs(deps_to_extract) do
 end
 
 
+-- apply ingame_overlay patches after extraction
+if _OPTIONS["ext-ingame_overlay"] or _OPTIONS["all-ext"] then
+    apply_ingame_overlay_patches()
+end
+
 -- build action
 -------
 if _OPTIONS["build-ssq"] or _OPTIONS["all-build"] then
@@ -557,192 +605,129 @@ if _OPTIONS["build-zlib"] or _OPTIONS["all-build"] then
         cmake_build('zlib', false, zlib_common_defs)
     end
 end
-
--- ############## zlib is painful ##############
--- lib curl uses the default search paths, even when ZLIB_INCLUDE_DIR and ZLIB_LIBRARY_RELEASE are defined
--- check thir CMakeLists.txt line #573
---     optional_dependency(ZLIB)
---     if(ZLIB_FOUND)
---       set(HAVE_LIBZ ON)
---       set(USE_ZLIB ON)
---     
---       # Depend on ZLIB via imported targets if supported by the running
---       # version of CMake.  This allows our dependents to get our dependencies
---       # transitively.
---       if(NOT CMAKE_VERSION VERSION_LESS 3.4)
---         list(APPEND CURL_LIBS ZLIB::ZLIB)    <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< evil
---       else()
---         list(APPEND CURL_LIBS ${ZLIB_LIBRARIES})
---         include_directories(${ZLIB_INCLUDE_DIRS})
---       endif()
---       list(APPEND CMAKE_REQUIRED_INCLUDES ${ZLIB_INCLUDE_DIRS})
---     endif()
--- we have to set the ZLIB_ROOT so that it is prepended to the search list
--- we have to set ZLIB_LIBRARY NOT ZLIB_LIBRARY_RELEASE in order to override the FindZlib module
--- we also should set ZLIB_USE_STATIC_LIBS since we want to force static builds
--- https://github.com/Kitware/CMake/blob/a6853135f569f0b040a34374a15a8361bb73901b/Modules/FindZLIB.cmake#L98C4-L98C13
-
-local zlib_name = ''
-local mbedtls_name = ''
-local mbedcrypto_name = ''
-local mbedx509_name = ''
--- name
-if _ACTION and os.target() == 'windows' then
-    if string.match(_ACTION, 'vs.+') then
-        zlib_name = 'zs'
-        mbedtls_name = 'mbedtls'
-        mbedcrypto_name = 'mbedcrypto'
-        mbedx509_name = 'mbedx509'
-    elseif string.match(_ACTION, 'gmake.*') then
-        zlib_name = 'libzs'
-        mbedtls_name = 'libmbedtls'
-        mbedcrypto_name = 'libmbedcrypto'
-        mbedx509_name = 'libmbedx509'
-    else
-        error('unsupported os/action: ' .. os.target() .. ' / ' .. _ACTION)
+if _OPTIONS["build-curl"] or _OPTIONS["all-build"] then
+    -- curl requires zlib
+    -- https://github.com/curl/curl/blob/curl-7_88_1/CMakeLists.txt#L531-L569
+    --       # Depend on ZLIB via imported targets if supported by the running
+    --       # CMake version, otherwise fall through to the 
+    --       # ZLIB_FOUND/ZLIB_INCLUDE_DIRS/ZLIB_LIBRARIES approach
+    --       if(ZLIB_FOUND)
+    --         target_link_libraries(${LIB_NAME} PRIVATE ZLIB::ZLIB)
+    --         if(LIBCURL_ONLY_SHARED AND UNIX)
+    --           install(TARGETS ZLIB::ZLIB ...)
+    --         endif()
+    --       else()
+    --         target_include_directories(${LIB_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
+    --         target_link_libraries(${LIB_NAME} PRIVATE ${ZLIB_LIBRARIES})
+    --       endif()
+    local wild_zlib_name = 'zlibstatic*.lib'
+    if os.target() ~= 'windows' then
+        wild_zlib_name = 'libz*.a'
     end
-else -- linux or macos
-    zlib_name = 'libz'
-    mbedtls_name = 'libmbedtls'
-    mbedcrypto_name = 'libmbedcrypto'
-    mbedx509_name = 'mbedx509'
-end
--- extension
-if _ACTION and string.match(_ACTION, 'vs.+') then
-    zlib_name = zlib_name .. '.lib'
-    mbedtls_name = mbedtls_name .. '.lib'
-    mbedcrypto_name = mbedcrypto_name .. '.lib'
-    mbedx509_name = mbedx509_name .. '.lib'
-else
-    zlib_name = zlib_name .. '.a'
-    mbedtls_name = mbedtls_name .. '.a'
-    mbedcrypto_name = mbedcrypto_name .. '.a'
-    mbedx509_name = mbedx509_name .. '.a'
-end
 
-local wild_zlib_path_32 = path.join(deps_dir, 'zlib', 'install32', 'lib', zlib_name)
-local wild_zlib_32 = {
-    'ZLIB_USE_STATIC_LIBS=ON',
-    'ZLIB_ROOT="' .. path.join(deps_dir, 'zlib', 'install32') .. '"',
-    'ZLIB_INCLUDE_DIR="' .. path.join(deps_dir, 'zlib', 'install32', 'include') .. '"',
-    'ZLIB_LIBRARY="' .. wild_zlib_path_32 .. '"',
-}
-local wild_zlib_path_64 = path.join(deps_dir, 'zlib', 'install64', 'lib', zlib_name)
-local wild_zlib_64 = {
-    'ZLIB_USE_STATIC_LIBS=ON',
-    'ZLIB_ROOT="' .. path.join(deps_dir, 'zlib', 'install64') .. '"',
-    'ZLIB_INCLUDE_DIR="' .. path.join(deps_dir, 'zlib', 'install64', 'include') .. '"',
-    'ZLIB_LIBRARY="' .. wild_zlib_path_64 .. '"',
-}
+    local wild_zlib_path_32 = path.join(deps_dir, 'zlib', 'install32', 'lib', wild_zlib_name)
+    local zlib_defs_32 = {
+        'ZLIB_ROOT="' .. path.join(deps_dir, 'zlib', 'install32') .. '"',
+        'ZLIB_INCLUDE_DIR="' .. path.join(deps_dir, 'zlib', 'install32', 'include') .. '"',
+        'ZLIB_LIBRARY="' .. wild_zlib_path_32 .. '"',
+    }
 
+    local wild_zlib_path_64 = path.join(deps_dir, 'zlib', 'install64', 'lib', wild_zlib_name)
+    local zlib_defs_64 = {
+        'ZLIB_ROOT="' .. path.join(deps_dir, 'zlib', 'install64') .. '"',
+        'ZLIB_INCLUDE_DIR="' .. path.join(deps_dir, 'zlib', 'install64', 'include') .. '"',
+        'ZLIB_LIBRARY="' .. wild_zlib_path_64 .. '"',
+    }
+
+    local curl_common_defs = {
+        "BUILD_CURL_EXE=OFF",
+        "BUILD_TESTING=OFF",
+        "CURL_DISABLE_INSTALL=OFF",
+        "CURL_USE_BEARSSL=OFF",
+        "CURL_USE_GNUTLS=OFF",
+        "CURL_USE_LIBPSL=OFF",
+        "CURL_USE_LIBSSH=OFF",
+        "CURL_USE_LIBSSH2=OFF",
+        "CURL_USE_MBEDTLS=ON",
+        "CURL_USE_NSS=OFF",
+        "CURL_USE_OPENSSL=OFF",
+        "CURL_USE_SCHANNEL=OFF",
+        "CURL_USE_WOLFSSL=OFF",
+        "CURL_ZLIB=ON",
+        'MBEDTLS_INCLUDE_DIRS="' .. path.join(deps_dir, 'mbedtls', 'install32', 'include') .. '"',
+        'MBEDTLS_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', 'mbedtls*.lib') .. '"',
+        'MBEDCRYPTO_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', 'mbedcrypto*.lib') .. '"',
+        'MBEDX509_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', 'mbedx509*.lib') .. '"',
+    }
+    if os.target() == 'windows' then
+        table.insert(curl_common_defs, 'CURL_USE_SCHANNEL=ON')
+        table.insert(curl_common_defs, 'CURL_USE_MBEDTLS=OFF')
+    end
+
+    if _OPTIONS["32-build"] then
+        local mbedtls_name = 'mbedtls*.lib'
+        local mbedcrypto_name = 'mbedcrypto*.lib'
+        local mbedx509_name = 'mbedx509*.lib'
+        if os.target() ~= 'windows' then
+            mbedtls_name = 'libmbedtls*.a'
+            mbedcrypto_name = 'libmbedcrypto*.a'
+            mbedx509_name = 'libmbedx509*.a'
+        end
+        local curl_32_defs = table_copy(zlib_defs_32, {
+            'MBEDTLS_INCLUDE_DIRS="' .. path.join(deps_dir, 'mbedtls', 'install32', 'include') .. '"',
+            'MBEDTLS_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', mbedtls_name) .. '"',
+            'MBEDCRYPTO_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', mbedcrypto_name) .. '"',
+            'MBEDX509_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', mbedx509_name) .. '"',
+        })
+        cmake_build('curl', true, table_copy(curl_common_defs, curl_32_defs))
+    end
+    if _OPTIONS["64-build"] then
+        local mbedtls_name = 'mbedtls*.lib'
+        local mbedcrypto_name = 'mbedcrypto*.lib'
+        local mbedx509_name = 'mbedx509*.lib'
+        if os.target() ~= 'windows' then
+            mbedtls_name = 'libmbedtls*.a'
+            mbedcrypto_name = 'libmbedcrypto*.a'
+            mbedx509_name = 'libmbedx509*.a'
+        end
+        local curl_64_defs = table_copy(zlib_defs_64, {
+            'MBEDTLS_INCLUDE_DIRS="' .. path.join(deps_dir, 'mbedtls', 'install64', 'include') .. '"',
+            'MBEDTLS_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install64', 'lib', mbedtls_name) .. '"',
+            'MBEDCRYPTO_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install64', 'lib', mbedcrypto_name) .. '"',
+            'MBEDX509_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install64', 'lib', mbedx509_name) .. '"',
+        })
+        cmake_build('curl', false, table_copy(curl_common_defs, curl_64_defs))
+    end
+end
+if _OPTIONS["build-protobuf"] or _OPTIONS["all-build"] then
+    local protobuf_common_defs = {
+        "protobuf_BUILD_TESTS=OFF",
+        "protobuf_BUILD_EXAMPLES=OFF",
+        "protobuf_BUILD_LIBPROTOC=OFF",
+        "protobuf_BUILD_PROTOC_BINARIES=ON",
+        "protobuf_MSVC_STATIC_RUNTIME=ON",
+        "protobuf_WITH_ZLIB=OFF",
+    }
+    if _OPTIONS["32-build"] then
+        cmake_build('protobuf', true, protobuf_common_defs)
+    end
+    if _OPTIONS["64-build"] then
+        cmake_build('protobuf', false, protobuf_common_defs)
+    end
+end
 if _OPTIONS["build-mbedtls"] or _OPTIONS["all-build"] then
     local mbedtls_common_defs = {
-        "USE_STATIC_MBEDTLS_LIBRARY=ON",
-        "USE_SHARED_MBEDTLS_LIBRARY=OFF",
         "ENABLE_TESTING=OFF",
         "ENABLE_PROGRAMS=OFF",
         "MBEDTLS_FATAL_WARNINGS=OFF",
     }
-    if os.target() == 'windows' and string.match(_ACTION, 'vs.+') then
-        table.insert(mbedtls_common_defs, "MSVC_STATIC_RUNTIME=ON")
-    else -- linux or macos or MinGW on Windows
-        table.insert(mbedtls_common_defs, "LINK_WITH_PTHREAD=ON")
-    end
-
-    local mbedtls_32_bit_fixes = {}
-    if _OPTIONS["32-build"] and string.match(_ACTION, 'gmake.*') then
-        table.insert(mbedtls_32_bit_fixes, '-mpclmul')
-        table.insert(mbedtls_32_bit_fixes, '-msse2')
-        table.insert(mbedtls_32_bit_fixes, '-maes')
-    end
-
     if _OPTIONS["32-build"] then
-        cmake_build('mbedtls', true, mbedtls_common_defs, mbedtls_32_bit_fixes)
+        cmake_build('mbedtls', true, mbedtls_common_defs)
     end
     if _OPTIONS["64-build"] then
         cmake_build('mbedtls', false, mbedtls_common_defs)
     end
 end
-
-if _OPTIONS["build-curl"] or _OPTIONS["all-build"] then
-    local curl_common_defs = {
-        "BUILD_CURL_EXE=OFF",
-        "BUILD_STATIC_CURL=OFF", -- "Build curl executable with static libcurl"
-
-        "BUILD_SHARED_LIBS=OFF",
-        "BUILD_STATIC_LIBS=ON",
-        "BUILD_MISC_DOCS=OFF",
-        "BUILD_TESTING=OFF",
-        "BUILD_LIBCURL_DOCS=OFF",
-        "ENABLE_CURL_MANUAL=OFF",
-
-        "CURL_USE_OPENSSL=OFF",
-        "CURL_ZLIB=ON",
-        
-        "CURL_USE_MBEDTLS=ON",
-        -- "CURL_USE_SCHANNEL=ON",
-        -- "CURL_CA_FALLBACK=ON", -- removed: only works with OpenSSL since curl 8.19.0
-        "CURL_CA_FALLBACK=OFF",
-
-        -- fix building on Arch Linux
-        "CURL_USE_LIBSSH2=OFF",
-        "CURL_USE_LIBPSL=OFF",
-        "USE_LIBIDN2=OFF",
-        "CURL_DISABLE_LDAP=ON",
-        "USE_NGHTTP2=OFF",
-        "CURL_BROTLI=OFF",
-        "CURL_ZSTD=OFF"
-    }
-    if os.target() == 'windows' and string.match(_ACTION, 'vs.+') then
-        table.insert(curl_common_defs, "CURL_STATIC_CRT=ON")
-        table.insert(curl_common_defs, "ENABLE_UNICODE=ON")
-    end
-
-    if _OPTIONS["32-build"] then
-        cmake_build('curl', true, merge_list(curl_common_defs, merge_list(wild_zlib_32, {
-            'MBEDTLS_INCLUDE_DIRS="' .. path.join(deps_dir, 'mbedtls', 'install32', 'include') .. '"',
-            'MBEDTLS_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', mbedtls_name) .. '"',
-            'MBEDCRYPTO_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', mbedcrypto_name) .. '"',
-            'MBEDX509_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install32', 'lib', mbedx509_name) .. '"',
-        })))
-    end
-    if _OPTIONS["64-build"] then
-        cmake_build('curl', false, merge_list(curl_common_defs, merge_list(wild_zlib_64, {
-            'MBEDTLS_INCLUDE_DIRS="' .. path.join(deps_dir, 'mbedtls', 'install64', 'include') .. '"',
-            'MBEDTLS_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install64', 'lib', mbedtls_name) .. '"',
-            'MBEDCRYPTO_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install64', 'lib', mbedcrypto_name) .. '"',
-            'MBEDX509_LIBRARY="' .. path.join(deps_dir, 'mbedtls', 'install64', 'lib', mbedx509_name) .. '"',
-        })))
-    end
-end
-
-if _OPTIONS["build-protobuf"] or _OPTIONS["all-build"] then
-    local proto_common_defs = {
-        "ABSL_PROPAGATE_CXX_STD=ON",
-        "protobuf_BUILD_PROTOBUF_BINARIES=ON",
-        "protobuf_BUILD_PROTOC_BINARIES=ON",
-        "protobuf_BUILD_LIBPROTOC=ON",
-        "protobuf_BUILD_LIBUPB=ON",
-        "protobuf_BUILD_TESTS=OFF",
-        "protobuf_BUILD_EXAMPLES=OFF",
-        "protobuf_DISABLE_RTTI=ON",
-        "protobuf_BUILD_CONFORMANCE=OFF",
-        "protobuf_BUILD_SHARED_LIBS=OFF",
-        "protobuf_WITH_ZLIB=ON",
-        "protobuf_FORCE_FETCH_DEPENDENCIES=ON",
-    }
-    if os.target() == 'windows' and string.match(_ACTION, 'gmake.*') then
-        table.insert(proto_common_defs, 'protobuf_MSVC_STATIC_RUNTIME=ON')
-    end
-
-    if _OPTIONS["32-build"] then
-        cmake_build('protobuf', true, merge_list(proto_common_defs, wild_zlib_32))
-    end
-    if _OPTIONS["64-build"] then
-        cmake_build('protobuf', false, merge_list(proto_common_defs, wild_zlib_64))
-    end
-end
-
 if _OPTIONS["build-ingame_overlay"] or _OPTIONS["all-build"] then
     -- fixes 32-bit compilation of DX12
     local overaly_imgui_cfg_file = path.join(deps_dir, 'ingame_overlay', 'imconfig.imcfg')
@@ -756,7 +741,8 @@ if _OPTIONS["build-ingame_overlay"] or _OPTIONS["all-build"] then
     local ingame_overlay_common_defs = {
         'IMGUI_USER_CONFIG="' .. overaly_imgui_cfg_file:gsub('\\', '/') .. '"', -- ensure we use '/' because this lib doesn't handle it well
         'INGAMEOVERLAY_USE_SYSTEM_LIBRARIES=OFF',
-        'INGAMEOVERLAY_USE_SPDLOG=OFF',
+        'INGAMEOVERLAY_USE_SPDLOG=' .. (_OPTIONS["debug-build"] and 'ON' or 'OFF'),
+        'INGAMEOVERLAY_LOG_LEVEL=' .. (_OPTIONS["debug-build"] and 'trace' or 'off'),
         'INGAMEOVERLAY_BUILD_TESTS=OFF',
         'INGAMEOVERLAY_DYNAMIC_RUNTIME=OFF',
         --'USE_MSVC_RUNTIME_LIBRARY_DLL=OFF', -- Should we?
@@ -767,9 +753,9 @@ if _OPTIONS["build-ingame_overlay"] or _OPTIONS["all-build"] then
         -- MinGW fixes
         if os.target() == 'windows' then
             -- MinGW doesn't define _M_AMD64 or _M_IX86, which makes SystemDetector.h fail to recognize os
-            -- MinGW throws this error: Filesystem.cpp:139:38: error: no matching function for call to 'stat::stat(const char*, stat*)
+            -- MinGW throws this error: Filesystem.cpp:139:38: error: no matching function for call to 'stat::stat(const char*, stat*)'
             table.insert(ingame_overlay_fixes, '-include sys/stat.h')
-            -- MinGW throws this error: Library.cpp:77:26: error: invalid conversion from 'FARPROC' {aka 'long long int (*)()'} to 'void*' [-fpermissive]
+            -- MinGW throws this error: Library.cpp:77:26: error: invalid conversion from 'FARPROC' {aka 'long long int (*)()'} to 'void*' [-fpermissive]'
             table.insert(ingame_overlay_fixes, '-fpermissive')
         end
     end
@@ -829,15 +815,15 @@ if _OPTIONS["build-portaudio"] or _OPTIONS["all-build"] then
         table.insert(portaudio_common_defs, "PA_USE_DS=ON")
         table.insert(portaudio_common_defs, "PA_USE_WMME=ON")
         table.insert(portaudio_common_defs, "PA_USE_WASAPI=ON")
-        table.insert(portaudio_common_defs, "PA_USE_WDMKS=ON")
-        table.insert(portaudio_common_defs, "PA_USE_WDMKS_DEVICE_INFO=ON")
-    else -- linux
-        -- disable backends that require system libs not available in CI
-        table.insert(portaudio_common_defs, "PA_USE_ALSA=OFF")
+        table.insert(portaudio_common_defs, "PA_USE_WDMKS=OFF")
+    else
+        -- Linux/macOS backends
+        table.insert(portaudio_common_defs, "PA_USE_ALSA=ON")
+        -- These make the build fail on some Linux distros where the headers aren't available
         table.insert(portaudio_common_defs, "PA_USE_JACK=OFF")
-        table.insert(portaudio_common_defs, "PA_ALSA_DYNAMIC=OFF")
+        table.insert(portaudio_common_defs, "PA_USE_OSS=OFF")
+        table.insert(portaudio_common_defs, "PA_USE_PULSEAUDIO=OFF")
     end
-
     if _OPTIONS["32-build"] then
         cmake_build('portaudio', true, portaudio_common_defs)
     end
@@ -848,19 +834,18 @@ end
 
 if _OPTIONS["build-sdl"] or _OPTIONS["all-build"] then
     local sdl_common_defs = {
-        -- enable / disable SDL subsystems
-        "SDL_AUDIO=OFF",
-        "SDL_VIDEO=OFF",
-        "SDL_HIDAPI=OFF",
-        "SDL_SENSOR=OFF",
-        "SDL_DIALOG=OFF",
-        "SDL_TRAY=OFF",
+        "SDL_SHARED=OFF",
+        "SDL_STATIC=ON",
+        "SDL_TEST_LIBRARY=OFF",
+        "SDL_DISABLE_INSTALL_DOCS=ON",
+        "SDL_LIBC=ON",
     }
     if os.target() ~= 'windows' then
-        -- build SDL without requiring a display server on Linux/Unix
-        table.insert(sdl_common_defs, "SDL_UNIX_CONSOLE_BUILD=ON")
+        table.insert(sdl_common_defs, "SDL_ALSA=ON")
+        table.insert(sdl_common_defs, "SDL_JACK=OFF")
+        table.insert(sdl_common_defs, "SDL_PULSEAUDIO=OFF")
+        table.insert(sdl_common_defs, "SDL_SNDIO=OFF")
     end
-
     if _OPTIONS["32-build"] then
         cmake_build('sdl', true, sdl_common_defs)
     end
