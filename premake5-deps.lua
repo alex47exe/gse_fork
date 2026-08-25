@@ -141,7 +141,7 @@ newoption {
 newoption {
     category = "build",
     trigger = "debug-build",
-    description = "Build dependencies with debug overlay logging settings",
+    description = "Build dependencies in Debug and enable ingame_overlay trace logging"
 }
 
 newoption {
