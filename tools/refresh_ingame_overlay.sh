@@ -68,10 +68,10 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Cloning $UPSTREAM_URL ..."
-git clone --no-checkout --filter=blob:none "$UPSTREAM_URL" "$TMP_DIR/ingame_overlay_src" >/dev/null 2>&1
+git clone --no-checkout --filter=blob:none "$UPSTREAM_URL" "$TMP_DIR/ingame_overlay_src"
 
 echo "Checking out $UPSTREAM_COMMIT ..."
-git -C "$TMP_DIR/ingame_overlay_src" checkout "$UPSTREAM_COMMIT" >/dev/null 2>&1
+git -C "$TMP_DIR/ingame_overlay_src" checkout "$UPSTREAM_COMMIT"
 
 mapfile -t PATCH_FILES < <(find "$PATCHES_DIR" -maxdepth 1 -type f -name '*.patch' | sort)
 if [[ ${#PATCH_FILES[@]} -eq 0 ]]; then
