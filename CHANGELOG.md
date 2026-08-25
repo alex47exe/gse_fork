@@ -1,6 +1,5 @@
 ## 2026/08/25
 
-* **[alex47exe]** deps: updated `ingame_overlay` upstream baseline from `0f9305c10e572b51d17447c5e4d2872337b13ab5` to `eb0638034d29781f5e6678c4273546c9395a7639`; documented reapplication flow for local sRGB/FP16/DXGI patches
 * **[alex47exe]** overlay: added debug-vs-release logging configuration examples and debug-build `ingame_overlay` spdlog/log-level premake options
 
 ---
