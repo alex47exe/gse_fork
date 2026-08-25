@@ -480,7 +480,7 @@ if _OPTIONS["ext-ingame_overlay"] or _OPTIONS["all-ext"] then
     --   1) sRGB format detection patch
     --   2) FP16 texture support patch
     --   3) DXGI swap-chain pointer exposure patch
-    -- and then update PATCH.txt/PATCHES.txt with any conflict resolutions/adaptations.
+    -- and then update the patch tracking documentation with any conflict resolutions/adaptations.
     table.insert(deps_to_extract, { 'ingame_overlay/ingame_overlay.tar.gz', 'ingame_overlay' })
 end
 if _OPTIONS["ext-opus"] or _OPTIONS["all-ext"] then
