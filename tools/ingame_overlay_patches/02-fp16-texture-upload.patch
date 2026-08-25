@@ -1,9 +1,12 @@
+diff --git a/include/InGameOverlay/RendererResource.h b/include/InGameOverlay/RendererResource.h
+index 2689cb61..92d963b8 100644
 --- a/include/InGameOverlay/RendererResource.h
 +++ b/include/InGameOverlay/RendererResource.h
-@@ -22,6 +22,15 @@
+@@ -21,6 +21,15 @@
+ 
  namespace InGameOverlay {
  
- /// <summary>
++/// <summary>
 +/// Pixel format for renderer resources.
 +/// </summary>
 +enum class RendererPixelFormat
@@ -12,11 +15,10 @@
 +    RGBA16F, // 8 bytes per pixel (FP16 half-float)
 +};
 +
-+/// <summary>
+ /// <summary>
  /// A renderer resource. It will be tied to the RendererHook that created it. Don't use it if you recycle the renderer hook.
  /// </summary>
- class RendererResource_t
-@@ -70,6 +79,10 @@
+@@ -70,6 +79,10 @@ public:
      /// <param name="height">The resource height</param>
      virtual void AttachResource(const void* data, uint32_t width, uint32_t height) = 0;
      /// <summary>
@@ -27,9 +29,11 @@
      /// Clears the attached resource. This will NOT delete the resource loaded onto the GPU. Call Unload for that purpose.
      /// </summary>
      virtual void ClearAttachedResource() = 0;
+diff --git a/src/RendererHookInternal.h b/src/RendererHookInternal.h
+index 74f14fa0..7adafba5 100644
 --- a/src/RendererHookInternal.h
 +++ b/src/RendererHookInternal.h
-@@ -47,6 +47,7 @@
+@@ -47,6 +47,7 @@ struct RendererTextureLoadParameter_t
      const void* Data;
      uint32_t Height;
      uint32_t Width;
@@ -37,9 +41,11 @@
  };
  
  struct RendererTextureReleaseParameter_t
+diff --git a/src/RendererResourceInternal.h b/src/RendererResourceInternal.h
+index 0406248f..e6ddfcc4 100644
 --- a/src/RendererResourceInternal.h
 +++ b/src/RendererResourceInternal.h
-@@ -32,12 +32,14 @@
+@@ -32,12 +32,14 @@ struct ResourceState_t
      std::weak_ptr<RendererTexture_t> RendererResource;
      uint32_t Width = 0;
      uint32_t Height = 0;
@@ -54,7 +60,7 @@
      }
  };
  
-@@ -74,6 +76,7 @@
+@@ -74,6 +76,7 @@ public:
      virtual uint32_t Height() const;
  
      virtual void AttachResource(const void* data, uint32_t width, uint32_t height);
@@ -62,9 +68,11 @@
  
      virtual void ClearAttachedResource();
  
+diff --git a/src/RendererResourceInternal.cpp b/src/RendererResourceInternal.cpp
+index e4d5f925..0b4f68d0 100644
 --- a/src/RendererResourceInternal.cpp
 +++ b/src/RendererResourceInternal.cpp
-@@ -71,6 +71,7 @@
+@@ -71,6 +71,7 @@ uint64_t RendererResourceInternal_t::GetResourceId()
                      loadParameter.Data = _Data;
                      loadParameter.Height = _RendererResource.Height;
                      loadParameter.Width = _RendererResource.Width;
@@ -72,19 +80,19 @@
                      r->LoadStatus = RendererTextureStatus_e::Loading;
                      _RendererHook->LoadImageResource(loadParameter);
                  }
-@@ -111,6 +112,11 @@
+@@ -110,6 +111,11 @@ uint32_t RendererResourceInternal_t::Height() const
+ }
  
  void RendererResourceInternal_t::AttachResource(const void* data, uint32_t width, uint32_t height)
- {
++{
 +    AttachResource(data, width, height, RendererPixelFormat::RGBA8);
 +}
 +
 +void RendererResourceInternal_t::AttachResource(const void* data, uint32_t width, uint32_t height, RendererPixelFormat format)
-+{
+ {
      if (IsLoaded())
          _OldRendererResource = _RendererResource;
- 
-@@ -118,6 +124,7 @@
+@@ -118,6 +124,7 @@ void RendererResourceInternal_t::AttachResource(const void* data, uint32_t width
      _Data = data;
      _RendererResource.Width = width;
      _RendererResource.Height = height;
@@ -92,9 +100,11 @@
  }
  
  void RendererResourceInternal_t::ClearAttachedResource()
+diff --git a/src/Windows/DX11Hook.cpp b/src/Windows/DX11Hook.cpp
+index f440f3da..d86c136d 100644
 --- a/src/Windows/DX11Hook.cpp
 +++ b/src/Windows/DX11Hook.cpp
-@@ -344,6 +344,7 @@
+@@ -344,6 +344,7 @@ void DX11Hook_t::_LoadResources()
          const void* Data;
          uint32_t Width;
          uint32_t Height;
@@ -102,7 +112,7 @@
      };
  
      std::vector<ValidTexture_t> validResources;
-@@ -362,7 +363,8 @@
+@@ -362,7 +363,8 @@ void DX11Hook_t::_LoadResources()
              r,
              param.Data,
              param.Width,
@@ -112,7 +122,7 @@
          });
      }
  
-@@ -371,12 +373,16 @@
+@@ -371,12 +373,16 @@ void DX11Hook_t::_LoadResources()
  
      for (auto& tex : validResources)
      {
@@ -130,7 +140,7 @@
          desc.SampleDesc.Count = 1;
          desc.Usage = D3D11_USAGE_DEFAULT;
          desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-@@ -384,7 +390,7 @@
+@@ -384,7 +390,7 @@ void DX11Hook_t::_LoadResources()
  
          D3D11_SUBRESOURCE_DATA sub{};
          sub.pSysMem = tex.Data;
@@ -139,9 +149,11 @@
  
          ID3D11Texture2D* texture = nullptr;
          HRESULT hr = _Device->CreateTexture2D(&desc, &sub, &texture);
+diff --git a/src/Windows/DX12Hook.cpp b/src/Windows/DX12Hook.cpp
+index d474d9e2..5cda75e1 100644
 --- a/src/Windows/DX12Hook.cpp
 +++ b/src/Windows/DX12Hook.cpp
-@@ -614,6 +614,7 @@
+@@ -614,6 +614,7 @@ void DX12Hook_t::_LoadResources()
          const void* Data;
          uint32_t Width;
          uint32_t Height;
@@ -149,7 +161,7 @@
      };
  
      std::vector<ValidTexture_t> validResources;
-@@ -630,7 +631,8 @@
+@@ -630,7 +631,8 @@ void DX12Hook_t::_LoadResources()
              std::static_pointer_cast<DX12Texture_t>(r),
              param.Data,
              param.Width,
@@ -159,7 +171,7 @@
          });
      }
  
-@@ -641,7 +643,8 @@
+@@ -641,7 +643,8 @@ void DX12Hook_t::_LoadResources()
          rowPitches.reserve(validResources.size());
          for (auto& tex : validResources)
          {
@@ -169,7 +181,7 @@
              rowPitches.push_back(pitch);
              totalUploadSize += tex.Height * pitch;
          }
-@@ -675,19 +678,21 @@
+@@ -675,19 +678,21 @@ void DX12Hook_t::_LoadResources()
          {
              auto& tex = validResources[i];
              UINT pitch = rowPitches[i];
@@ -194,7 +206,7 @@
              srcLoc.PlacedFootprint.Footprint.Width = tex.Width;
              srcLoc.PlacedFootprint.Footprint.Height = tex.Height;
              srcLoc.PlacedFootprint.Footprint.Depth = 1;
-@@ -705,6 +710,7 @@
+@@ -705,6 +710,7 @@ void DX12Hook_t::_LoadResources()
          for (size_t i = 0; i < validResources.size(); ++i)
          {
              auto& tex = validResources[i];
@@ -202,7 +214,7 @@
  
              D3D12_RESOURCE_DESC texDesc{};
              texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-@@ -712,7 +718,7 @@
+@@ -712,7 +718,7 @@ void DX12Hook_t::_LoadResources()
              texDesc.Height = tex.Height;
              texDesc.DepthOrArraySize = 1;
              texDesc.MipLevels = 1;
@@ -211,7 +223,7 @@
              texDesc.SampleDesc.Count = 1;
              texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
  
-@@ -738,7 +744,7 @@
+@@ -738,7 +744,7 @@ void DX12Hook_t::_LoadResources()
              _ImageCommandList->ResourceBarrier(1, &barrier);
  
              D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -220,9 +232,11 @@
              srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
              srvDesc.Texture2D.MipLevels = 1;
              srvDesc.Texture2D.MostDetailedMip = 0;
+diff --git a/src/Windows/VulkanHook.cpp b/src/Windows/VulkanHook.cpp
+index 275e49a2..5cf33eab 100644
 --- a/src/Windows/VulkanHook.cpp
 +++ b/src/Windows/VulkanHook.cpp
-@@ -984,6 +984,7 @@
+@@ -984,6 +984,7 @@ void VulkanHook_t::_LoadResources()
          uint32_t Height;
          VkDeviceSize Offset;
          VkDeviceSize Size;
@@ -230,7 +244,7 @@
      };
  
      std::vector<ValidTexture_t> validResources;
-@@ -1002,7 +1003,8 @@
+@@ -1002,7 +1003,8 @@ void VulkanHook_t::_LoadResources()
          t.Data = param.Data;
          t.Width = param.Width;
          t.Height = param.Height;
@@ -240,7 +254,7 @@
  
          validResources.push_back(t);
      }
-@@ -1069,11 +1071,12 @@
+@@ -1069,11 +1071,12 @@ void VulkanHook_t::_LoadResources()
          VkImage image = VK_NULL_HANDLE;
          VkImageView view = VK_NULL_HANDLE;
          VkDeviceMemory memory = VK_NULL_HANDLE;
@@ -254,7 +268,7 @@
          info.extent = { tex.Width, tex.Height, 1 };
          info.mipLevels = 1;
          info.arrayLayers = 1;
-@@ -1098,7 +1101,7 @@
+@@ -1098,7 +1101,7 @@ void VulkanHook_t::_LoadResources()
          viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
          viewInfo.image = image;
          viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -263,9 +277,11 @@
          viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
          viewInfo.subresourceRange.levelCount = 1;
          viewInfo.subresourceRange.layerCount = 1;
+diff --git a/src/Windows/OpenGLHook.cpp b/src/Windows/OpenGLHook.cpp
+index 2db4a24c..724afe45 100644
 --- a/src/Windows/OpenGLHook.cpp
 +++ b/src/Windows/OpenGLHook.cpp
-@@ -176,6 +176,7 @@
+@@ -176,6 +176,7 @@ void OpenGLHook_t::_LoadResources()
          const void* Data;
          uint32_t Width;
          uint32_t Height;
@@ -273,7 +289,7 @@
      };
  
      std::vector<ValidTexture_t> validResources;
-@@ -192,7 +193,8 @@
+@@ -192,7 +193,8 @@ void OpenGLHook_t::_LoadResources()
              r,
              param.Data,
              param.Width,
@@ -283,7 +299,7 @@
          });
      }
  
-@@ -209,7 +211,10 @@
+@@ -209,7 +211,10 @@ void OpenGLHook_t::_LoadResources()
  
              // Upload pixels into texture
              glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);

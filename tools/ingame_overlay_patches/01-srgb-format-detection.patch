@@ -1,6 +1,8 @@
+diff --git a/include/InGameOverlay/RendererHook.h b/include/InGameOverlay/RendererHook.h
+index 16248834..dca5f85a 100644
 --- a/include/InGameOverlay/RendererHook.h
 +++ b/include/InGameOverlay/RendererHook.h
-@@ -92,6 +92,11 @@
+@@ -92,6 +92,11 @@ enum class ScreenshotDataFormat_t : uint16_t
      B5G6R5,
      B5G5R5A1,
  
@@ -12,9 +14,11 @@
      // HDR / float formats
      R16G16B16A16_FLOAT,
      R16G16B16A16_UNORM,
+diff --git a/src/Windows/DX11Hook.cpp b/src/Windows/DX11Hook.cpp
+index f440f3da..be233b79 100644
 --- a/src/Windows/DX11Hook.cpp
 +++ b/src/Windows/DX11Hook.cpp
-@@ -60,9 +60,9 @@
+@@ -60,9 +60,9 @@ static InGameOverlay::ScreenshotDataFormat_t RendererFormatToScreenshotFormat(DX
          case DXGI_FORMAT_B5G5R5A1_UNORM     : return InGameOverlay::ScreenshotDataFormat_t::B5G5R5A1;
          case DXGI_FORMAT_R16G16B16A16_FLOAT : return InGameOverlay::ScreenshotDataFormat_t::R16G16B16A16_FLOAT;
          case DXGI_FORMAT_R16G16B16A16_UNORM : return InGameOverlay::ScreenshotDataFormat_t::R16G16B16A16_UNORM;
@@ -27,9 +31,11 @@
          default:                              return InGameOverlay::ScreenshotDataFormat_t::Unknown;
      }
  }
+diff --git a/src/Windows/DX12Hook.cpp b/src/Windows/DX12Hook.cpp
+index d474d9e2..0b08e982 100644
 --- a/src/Windows/DX12Hook.cpp
 +++ b/src/Windows/DX12Hook.cpp
-@@ -68,9 +68,9 @@
+@@ -68,9 +68,9 @@ static InGameOverlay::ScreenshotDataFormat_t RendererFormatToScreenshotFormat(DX
          case DXGI_FORMAT_B5G5R5A1_UNORM     : return InGameOverlay::ScreenshotDataFormat_t::B5G5R5A1;
          case DXGI_FORMAT_R16G16B16A16_FLOAT : return InGameOverlay::ScreenshotDataFormat_t::R16G16B16A16_FLOAT;
          case DXGI_FORMAT_R16G16B16A16_UNORM : return InGameOverlay::ScreenshotDataFormat_t::R16G16B16A16_UNORM;
@@ -42,9 +48,11 @@
          default:                              return InGameOverlay::ScreenshotDataFormat_t::Unknown;
      }
  }
+diff --git a/src/Windows/VulkanHook.cpp b/src/Windows/VulkanHook.cpp
+index 275e49a2..f81e465f 100644
 --- a/src/Windows/VulkanHook.cpp
 +++ b/src/Windows/VulkanHook.cpp
-@@ -66,10 +66,10 @@
+@@ -66,10 +66,10 @@ static InGameOverlay::ScreenshotDataFormat_t RendererFormatToScreenshotFormat(Vk
  {
      switch (format)
      {

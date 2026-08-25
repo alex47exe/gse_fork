@@ -507,14 +507,14 @@ local function apply_ingame_overlay_patches()
     for _, patch_file in ipairs(patches) do
         print('\nprocessing ingame_overlay patch: ' .. patch_file)
 
-        local ok_apply = os.execute('git -C "' .. overlay_dir .. '" apply --check --whitespace=nowarn "' .. patch_file .. '"')
+        local ok_apply = os.execute('git -C "' .. overlay_dir .. '" apply --check --ignore-space-change --ignore-whitespace --whitespace=nowarn "' .. patch_file .. '"')
         if ok_apply then
-            ok_apply = os.execute('git -C "' .. overlay_dir .. '" apply --whitespace=nowarn "' .. patch_file .. '"')
+            ok_apply = os.execute('git -C "' .. overlay_dir .. '" apply --ignore-space-change --ignore-whitespace --whitespace=nowarn "' .. patch_file .. '"')
             if not ok_apply then
                 error('failed to apply ingame_overlay patch: ' .. patch_file)
             end
         else
-            local already_applied = os.execute('git -C "' .. overlay_dir .. '" apply --reverse --check --whitespace=nowarn "' .. patch_file .. '"')
+            local already_applied = os.execute('git -C "' .. overlay_dir .. '" apply --reverse --check --ignore-space-change --ignore-whitespace --whitespace=nowarn "' .. patch_file .. '"')
             if already_applied then
                 print('patch already present, skipping: ' .. patch_file)
             else

@@ -82,7 +82,7 @@ fi
 echo "Applying ${#PATCH_FILES[@]} patch(es) ..."
 for patch_file in "${PATCH_FILES[@]}"; do
     echo "  $(basename "$patch_file")"
-    git -C "$TMP_DIR/ingame_overlay_src" apply --whitespace=nowarn "$patch_file"
+    git -C "$TMP_DIR/ingame_overlay_src" apply --ignore-space-change --ignore-whitespace --whitespace=nowarn "$patch_file"
 done
 
 PACKED="$TMP_DIR/ingame_overlay.tar.gz"
