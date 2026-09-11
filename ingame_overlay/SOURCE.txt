@@ -5,6 +5,41 @@ https://github.com/Nemirtingas/ingame_overlay
 VERSION: https://github.com/alex47exe/ingame_overlay/tree/a93ee0f0f09f7b224e7da56c594afde0597cede1
 FORK_OF: https://github.com/Nemirtingas/ingame_overlay/tree/eb0638034d29781f5e6678c4273546c9395a7639
 
+#### LOCAL MODIFICATIONS
+
+The archive is based on the VERSION commit above with the fixes listed below applied.
+The original file of every modified source file is kept next to it with an added ".ORG"
+extension (for example "src/Windows/DX9Hook.cpp.ORG"), so both versions can be compared.
+
+* src/Windows/DX12Hook.cpp
+  - "srvDesc.Format = texFmt" referenced an undeclared identifier (error C2065: the
+    dependency did not compile at all), and texDesc.Format was still hard-coded to
+    DXGI_FORMAT_R8G8B8A8_UNORM while the upload footprint was already RGBA16F, so the
+    source footprint format did not match the destination texture. Both now use the
+    per-texture format.
+
+* src/Windows/DX9Hook.cpp, src/Windows/DX10Hook.cpp
+  - Both backends ignored RendererTextureLoadParameter_t::PixelFormat and always uploaded
+    4 bytes per pixel, so an RGBA16F image was reinterpreted as RGBA8, producing corrupted
+    overlay icons/avatars without any error being reported. They now create RGBA16F
+    textures (D3DFMT_A16B16G16R16F / DXGI_FORMAT_R16G16B16A16_FLOAT) with the matching
+    row pitch, view format and copy size.
+
+* src/Windows/DX10Hook.cpp
+  - DXGI_FORMAT_*_UNORM_SRGB swap chains were reported as the non-sRGB formats, so a caller
+    could not detect a hardware-sRGB render target and ended up double-encoding the colours
+    (washed out overlay). They are now reported as ScreenshotDataFormat_t::*_SRGB.
+
+* include/InGameOverlay/RendererHook.h, src/Windows/{DX9,DX10,DX11,DX12,OpenGL,Vulkan}Hook.h
+  - Added RendererHook_t::SupportsPixelFormat(RendererPixelFormat), so a caller can check
+    whether a backend is able to upload a given format before attaching an image. The default
+    implementation only reports RGBA8. DX9 reports RGBA16F only when the device can both
+    filter and lock D3DFMT_A16B16G16R16F (queried with CheckDeviceFormat).
+
+The Linux (OpenGLX, Vulkan) and macOS (OpenGL, Metal) hooks are unchanged and remain
+RGBA8-only. With the new query a caller can fall back to RGBA8 for those backends instead
+of uploading a format they would misinterpret.
+
 #### LICENSE
 
                     GNU GENERAL PUBLIC LICENSE
