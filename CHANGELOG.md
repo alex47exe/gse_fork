@@ -29,7 +29,7 @@ range: `e4035e0..bd4d990` — 48 commits (39 non-merge)
 
 ### 2026/10/18
 
-* **[Detanup01]** overlay: update to the new ingame_overlay — the renderer detector is now a plain `DetectRenderer()` loop instead of the previous `DetectRenderer(restart)` poller
+* **[Detanup01]** overlay: the ingame_overlay archive was updated to Nemirtingas `4ec39d4` (2026/04/30), which is **older** than the one this fork ships (`eb06380`, 2026/08/08, plus local patches), so it is deliberately not adopted; this is why upstream's `steam_overlay.cpp` uses the old `std::future<RendererHook_t*> DetectRenderer(...)` API while ours uses the newer `bool DetectRenderer(bool restart, ...)`
 * **[Detanup01]** overlay: linux arm support, and a Windows ARM64 build that only runs from a called workflow
 * **[Detanup01]** ci: new `emu-build-all-win-arm`, `emu-build-all-linux-arm`, `emu-deps-win-arm` and `emu-deps-linux-arm` workflows; fix the linux arm release
 * **[Detanup01]** build: fix the linux build, print the detected OS
@@ -100,8 +100,8 @@ range: `e4035e0..bd4d990` — 48 commits (39 non-merge)
 
 ### 2026/11/09
 
-* **[alex47exe]** build: upstream's overlay update (`third-party/deps/common`) is **not** taken yet — the fork's patched ingame_overlay archive (RGBA16F/HDR uploads, sRGB swapchain detection, OpenGL hook hang fix, `GetDXGISwapChain()` on `RendererHook_t`) is kept, together with the stateful renderer detector it requires. Porting those patches onto the new overlay is tracked as a follow-up
-* **[alex47exe]** ci: upstream's ARM64 release jobs were ported as an opt-in `build_arm` input (`release.yml`), off by default because the arm builds need the new overlay
+* **[alex47exe]** build: upstream's overlay archive (`third-party/deps/common`) is **not** taken — it is based on Nemirtingas `4ec39d4` (2026/04/30) while this fork ships `eb06380` (2026/08/08) plus local patches (RGBA16F/HDR uploads, sRGB swapchain detection, OpenGL hook hang fix, `GetDXGISwapChain()` on `RendererHook_t`), so taking upstream's would be a downgrade that also reverts ImGui 1.92.9; the stateful renderer detector stays
+* **[alex47exe]** ci: upstream's ARM64 release jobs were ported as an opt-in `build_arm` input (`release.yml`), off by default because the overlay dependencies have not been built for ARM64 yet
 * **[alex47exe]** build: `build_win_premake.bat` keeps building only x64 + Win32 (the ReShade addon has no ARM64 configuration) and does not build ARM64 dependencies locally
 
 ---
