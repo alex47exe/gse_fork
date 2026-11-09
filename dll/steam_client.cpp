@@ -344,6 +344,7 @@ void Steam_Client::setAppID(uint32 appid)
 HSteamPipe Steam_Client::CreateSteamPipe()
 {
     PRINT_DEBUG_ENTRY();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
 
     HSteamPipe pipe = steam_pipe_numbers.get_number();
 
@@ -360,6 +361,7 @@ HSteamPipe Steam_Client::CreateSteamPipe()
 bool Steam_Client::BReleaseSteamPipe( HSteamPipe hSteamPipe )
 {
     PRINT_DEBUG("%i", hSteamPipe);
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     if (steam_pipes.count(hSteamPipe)) {
         steam_pipe_numbers.free_number(hSteamPipe);
         return steam_pipes.erase(hSteamPipe) > 0;
@@ -374,6 +376,7 @@ bool Steam_Client::BReleaseSteamPipe( HSteamPipe hSteamPipe )
 HSteamUser Steam_Client::ConnectToGlobalUser( HSteamPipe hSteamPipe )
 {
     PRINT_DEBUG("%i", hSteamPipe);
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     if (!steam_pipes.count(hSteamPipe)) {
         return 0;
     }
@@ -404,6 +407,7 @@ HSteamUser Steam_Client::ConnectToGlobalUser( HSteamPipe hSteamPipe )
 HSteamUser Steam_Client::CreateLocalUser( HSteamPipe *phSteamPipe, EAccountType eAccountType )
 {
     PRINT_DEBUG("%p %i", phSteamPipe, eAccountType);
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     //if (eAccountType == k_EAccountTypeIndividual) {
         //Is this actually used?
         //if (phSteamPipe) *phSteamPipe = CLIENT_STEAM_PIPE;
@@ -432,6 +436,7 @@ HSteamUser Steam_Client::CreateLocalUser( HSteamPipe *phSteamPipe )
 void Steam_Client::ReleaseUser( HSteamPipe hSteamPipe, HSteamUser hUser )
 {
     PRINT_DEBUG("%i %i", hSteamPipe, hUser);
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
 
     if (!steam_pipes.count(hSteamPipe))
         return;
@@ -1075,6 +1080,7 @@ void Steam_Client::DestroyAllInterfaces()
 HSteamUser Steam_Client::CreateGlobalInstance()
 {
     PRINT_DEBUG_ENTRY();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     HSteamPipe pipe = 0;
     HSteamUser user = CreateGlobalUser(&pipe);
     return create_old_user_ref(user, pipe);
@@ -1083,6 +1089,7 @@ HSteamUser Steam_Client::CreateGlobalInstance()
 HSteamUser Steam_Client::ConnectToGlobalInstance()
 {
     PRINT_DEBUG_ENTRY();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     if (steamclient_version < 4) {
         for (auto &[key, val] : old_user_refs) {
             if (val.user == CLIENT_HSTEAMUSER) {
@@ -1099,6 +1106,7 @@ HSteamUser Steam_Client::ConnectToGlobalInstance()
 HSteamUser Steam_Client::CreateLocalInstance()
 {
     PRINT_DEBUG_ENTRY();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     HSteamPipe pipe = 0;
     HSteamUser user = CreateLocalUser(&pipe);
     return create_old_user_ref(user, pipe);
@@ -1107,6 +1115,7 @@ HSteamUser Steam_Client::CreateLocalInstance()
 void Steam_Client::ReleaseInstance( HSteamUser hSteamUser )
 {
     PRINT_DEBUG_ENTRY();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     auto it = old_user_refs.find(hSteamUser);
     if (it == old_user_refs.end()) return;
 
@@ -1120,6 +1129,7 @@ void Steam_Client::ReleaseInstance( HSteamUser hSteamUser )
 ISteamUser *Steam_Client::GetISteamUser( HSteamUser hSteamUser, const char *pchVersion )
 {
     PRINT_DEBUG_ENTRY();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     if (!old_user_refs.count(hSteamUser)) return nullptr;
     User_Ref &user_ref = old_user_refs[hSteamUser];
     return GetISteamUser(user_ref.user, user_ref.pipe, pchVersion);
@@ -1169,6 +1179,7 @@ HSteamUser Steam_Client::CreateGlobalUser( HSteamPipe *phSteamPipe )
 {
     // TODO not sure if this implementation is correct
     PRINT_DEBUG_TODO();
+    std::lock_guard<std::recursive_mutex> lock(global_mutex);
     for (const auto &[pipe_handle, pipe_struct] : steam_pipes) {
         if (pipe_struct.type == Steam_Pipe_Type::CLIENT) {
             if (phSteamPipe) *phSteamPipe = pipe_handle;

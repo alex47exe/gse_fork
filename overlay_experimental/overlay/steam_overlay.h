@@ -252,6 +252,11 @@ class Steam_Overlay
     // track which friend lobbies we've already notified about (friend_id -> lobby_id)
     std::unordered_map<uint64, uint64> notified_friend_lobbies{};
 
+    // the lobby the game passed to the last OpenOverlayInvite() call
+    // (ActivateGameOverlayInviteDialog()). invite_friend() must send the invitation
+    // to this specific lobby, not the last joined one
+    std::atomic<uint64> invite_lobby_id{};
+
     // Rate-limiting queue for achievement notifications
     struct ScheduledAchievement {
         Overlay_Achievement ach;

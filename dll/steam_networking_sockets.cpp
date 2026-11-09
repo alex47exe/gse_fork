@@ -371,33 +371,31 @@ HSteamNetConnection Steam_Networking_Sockets::ConnectByIPAddress( const SteamNet
 {
     PRINT_DEBUG("old");
     std::lock_guard<std::recursive_mutex> lock(global_mutex);
-    SteamNetworkingIdentity ip_id;
+    SteamNetworkingIdentity ip_id{};
     ip_id.SetIPAddr(address);
     HSteamNetConnection socket = new_connect_socket(ip_id, SNS_DISABLED_PORT, address.m_port);
     send_packet_new_connection(socket);
+
+    // new_connect_socket() defaults status to CONNECT_SOCKET_CONNECTING, so passing
+    // CONNECT_SOCKET_NO_CONNECTION as old_status yields None -> Connecting.
+    if (socket != k_HSteamNetConnection_Invalid) {
+        launch_callback(socket, CONNECT_SOCKET_NO_CONNECTION);
+    }
+
     return socket;
 }
 
 HSteamNetConnection Steam_Networking_Sockets::ConnectByIPAddress( const SteamNetworkingIPAddr *address )
 {
     PRINT_DEBUG("old1");
-    std::lock_guard<std::recursive_mutex> lock(global_mutex);
-    SteamNetworkingIdentity ip_id;
-    ip_id.SetIPAddr(*address);
-    HSteamNetConnection socket = new_connect_socket(ip_id, SNS_DISABLED_PORT, address->m_port);
-    send_packet_new_connection(socket);
-    return socket;
+    return ConnectByIPAddress(*address);
 }
 
 HSteamNetConnection Steam_Networking_Sockets::ConnectByIPAddress( const SteamNetworkingIPAddr &address, int nOptions, const SteamNetworkingConfigValue_t *pOptions )
 {
     PRINT_DEBUG("%X", address.GetIPv4());
-    std::lock_guard<std::recursive_mutex> lock(global_mutex);
-    SteamNetworkingIdentity ip_id;
-    ip_id.SetIPAddr(address);
-    HSteamNetConnection socket = new_connect_socket(ip_id, SNS_DISABLED_PORT, address.m_port);
-    send_packet_new_connection(socket);
-    return socket;
+    // TODO config options
+    return ConnectByIPAddress(address);
 }
 
 /// Like CreateListenSocketIP, but clients will connect using ConnectP2P
@@ -455,6 +453,13 @@ HSteamNetConnection Steam_Networking_Sockets::ConnectP2P( const SteamNetworkingI
 
     HSteamNetConnection socket = new_connect_socket(identityRemote, nVirtualPort, SNS_DISABLED_PORT);
     send_packet_new_connection(socket);
+
+    // new_connect_socket() defaults status to CONNECT_SOCKET_CONNECTING, so passing
+    // CONNECT_SOCKET_NO_CONNECTION as old_status yields None -> Connecting.
+    if (socket != k_HSteamNetConnection_Invalid) {
+        launch_callback(socket, CONNECT_SOCKET_NO_CONNECTION);
+    }
+
     return socket;
 }
 

@@ -57,6 +57,10 @@ on:
           - vs2026
           - vs2022
         default: 'vs2026'
+      build_arm:
+        description: 'Also build the ARM64 variants (Windows + Linux)'
+        type: boolean
+        default: false
 
 permissions:
   contents: "write"
@@ -335,3 +339,183 @@ jobs:
               && echo "Deleted artifact ${artifact_id}" \
               || echo "Failed to delete artifact ${artifact_id}"
           done
+
+  # ---------------------------------------------------------------------------
+  # ARM64 variants, ported from upstream (gbe_fork).
+  # Disabled by default: enable with the "build_arm" workflow input.
+  # See dev.notes/ for the ARM toolchain + deps requirements.
+  # ---------------------------------------------------------------------------
+
+  emu-win-arm-all:
+    name: "Emu win arm all"
+    if: ${{ !cancelled() && inputs.build_arm }}
+    uses: "./.github/workflows/emu-build-all-win-arm.yml"
+
+  emu-win-arm-prep:
+    needs: ["emu-win-arm-all"]
+    if: ${{ !cancelled() && inputs.build_arm }}
+    runs-on: "windows-11-vs2026-arm"
+    steps:
+      # we need branch because it has package scripts
+      - name: "Checkout branch"
+        uses: actions/checkout@v6
+
+      - name: "Clone third-party deps (deps/win)"
+        uses: actions/checkout@v6
+        with:
+          ref: "third-party/deps/win"
+          path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
+
+      # download artifacts
+      - name: "Download emu build artifacts (Win ARM64)"
+        uses: actions/download-artifact@v8
+        with:
+          path: "build/win"
+          pattern: "emu-winarm-*-${{ github.sha }}"
+          merge-multiple: true
+
+      # print files
+      - name: "Print files"
+        shell: "cmd"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          dir /s /b /a:-d build\win
+
+      # package (release mode)
+      - name: "Package build (release)"
+        shell: "cmd"
+        working-directory: "${{ github.workspace }}"
+        run: package_win.bat vs2026\release
+
+      # package (debug mode)
+      - name: "Package build (debug)"
+        shell: "cmd"
+        working-directory: "${{ github.workspace }}"
+        run: package_win.bat vs2026\debug 1
+
+      # Rename
+      - name: "Rename"
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: "cmd"
+        working-directory: "build/package/win/vs2026"
+        run: |
+          ren emu-win-debug.7z emu-winarm-debug-vs26.7z
+          ren emu-win-release.7z emu-winarm-release-vs26.7z
+
+      # release (debug + release modes) if this is a tag push
+      - name: "Release"
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: "build/package/win/**/*"
+
+      # upload artifacts/packages if this is a manual run
+      - name: "Upload release package"
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: "release-emu-winarm-vs26-release-${{ github.sha }}"
+          path: "build/package/win/vs2026/*release*"
+          if-no-files-found: "error"
+          compression-level: 0
+          retention-days: 7
+
+      - name: "Upload debug package"
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: "release-emu-winarm-vs26-debug-${{ github.sha }}"
+          path: "build/package/win/vs2026/*debug*"
+          if-no-files-found: "error"
+          compression-level: 0
+          retention-days: 7
+
+  emu-linux-arm-all:
+    name: "Emu linux arm all"
+    if: ${{ !cancelled() && inputs.build_arm }}
+    uses: "./.github/workflows/emu-build-all-linux-arm.yml"
+
+  emu-linux-arm-prep:
+    needs: ["emu-linux-arm-all"]
+    if: ${{ !cancelled() && inputs.build_arm }}
+    runs-on: "ubuntu-24.04-arm"
+    steps:
+      # we need branch because it has package scripts
+      - name: "Checkout branch"
+        uses: actions/checkout@v6
+
+      - name: "Clone third-party deps (deps/linux)"
+        uses: actions/checkout@v6
+        with:
+          ref: "third-party/deps/linux"
+          path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/linux"
+
+      # download artifacts
+      - name: "Download emu build artifacts (linux ARM64)"
+        uses: actions/download-artifact@v8
+        with:
+          path: "build/linux"
+          pattern: "emu-linuxarm-*-${{ github.sha }}"
+          merge-multiple: true
+
+      # fix folder permissions! not sure why this fails
+      # nested subdirs "build/linux/release" cause permission problems
+      - name: "Give all permissions to repo folder"
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: sudo chmod -R 777 "${{ github.workspace }}" && sudo chmod 777 package_linux.sh
+
+      # print files
+      - name: "Print files"
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          ls -la build/linux/*/*
+
+      # downlaod ubuntu packages
+      - name: "Download required Ubuntu packages"
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          sudo apt update || exit 1
+          sudo apt install tar -y || exit 1
+
+      # package (release mode)
+      - name: "Package build (release)"
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: ./package_linux.sh gmake/release
+
+      # package (debug mode)
+      - name: "Package build (debug)"
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: ./package_linux.sh gmake/debug 1
+
+      # release (debug + release modes) if this is a tag push
+      - name: "Release"
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: "build/package/linux/**/*"
+
+      # upload artifacts/packages if this is a manual run
+      - name: "Upload release package"
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: "release-emu-linux-arm-release-${{ github.sha }}"
+          path: "build/package/linux/gmake/*release*"
+          if-no-files-found: "error"
+          compression-level: 0
+          retention-days: 7
+
+      - name: "Upload debug package"
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: "release-emu-linux-arm-debug-${{ github.sha }}"
+          path: "build/package/linux/gmake/*debug*"
+          if-no-files-found: "error"
+          compression-level: 0
+          retention-days: 7
