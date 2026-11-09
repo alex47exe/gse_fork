@@ -18,7 +18,93 @@ Each release heading gives the upstream tag and the range of dates it covers; th
 
 ---
 
+## Unreleased (upstream)  — merged 2026/11/09
+range: `e4035e0..bd4d990` — 48 commits (39 non-merge)
+
+### 2026/10/28
+
+* **[Nitorac]** fix(arm): wrong ARM64 detection on Windows emulated arm (Github Runners)
+
+---
+
+### 2026/10/18
+
+* **[Detanup01]** overlay: update to the new ingame_overlay — the renderer detector is now a plain `DetectRenderer()` loop instead of the previous `DetectRenderer(restart)` poller
+* **[Detanup01]** overlay: linux arm support, and a Windows ARM64 build that only runs from a called workflow
+* **[Detanup01]** ci: new `emu-build-all-win-arm`, `emu-build-all-linux-arm`, `emu-deps-win-arm` and `emu-deps-linux-arm` workflows; fix the linux arm release
+* **[Detanup01]** build: fix the linux build, print the detected OS
+
+---
+
+### 2026/09/27
+
+* **[gameclamp]** overlay: lobby invites no longer ignore the lobby ID passed to `ActivateGameOverlayInviteDialog()`, they were always sent to the last joined lobby
+
+---
+
+### 2026/09/25
+
+* **[Detanup01]** ci: release.yml updates
+
+---
+
+### 2026/09/24
+
+* **[kolan2222]** translations: update Russian to the 2026.09.16 version
+
+---
+
+### 2026/09/23
+
+* **[Detanup01]** steam_controller: `Init()` now calls `Init(false)`
+
+---
+
+### 2026/09/21
+
+* **[Detanup01]** build: ARM64 support in premake (deps and overlay), arm64-aware crash printer, linux arm build script and release jobs, new `third-party/deps/linux-arm` submodule
+
+---
+
+### 2026/09/20
+
+* **[NicknineTheEagle]** fix potential deadlock on exit: `KillableWorker::kill()` waits for the worker to acknowledge the kill instead of joining it, which deadlocked when a game called `SteamAPI_Shutdown()` while unloading one of its DLLs
+
+---
+
+### 2026/09/16
+
+* **[Detanup01]** ci: rename the vs26 release artifacts
+
+---
+
+### 2026/09/10
+
+* **[axd1x8a]** networking messages: keep `DATA` messages that arrive before `CONNECTION_NEW`, both are sent as independent messages with no ordering guarantee and the data used to be dropped
+
+---
+
+### 2026/09/03
+
+* **[Johnson8033]** translations: update traditional Chinese
+
+---
+
+### 2026/08/30
+
+* **[universal963]** networking sockets: missing connection-state callback in `ConnectP2P()` and `ConnectByIPAddress()`
+
+---
+
 ## Unreleased (fork)
+
+### 2026/11/09
+
+* **[alex47exe]** build: upstream's overlay update (`third-party/deps/common`) is **not** taken yet — the fork's patched ingame_overlay archive (RGBA16F/HDR uploads, sRGB swapchain detection, OpenGL hook hang fix, `GetDXGISwapChain()` on `RendererHook_t`) is kept, together with the stateful renderer detector it requires. Porting those patches onto the new overlay is tracked as a follow-up
+* **[alex47exe]** ci: upstream's ARM64 release jobs were ported as an opt-in `build_arm` input (`release.yml`), off by default because the arm builds need the new overlay
+* **[alex47exe]** build: `build_win_premake.bat` keeps building only x64 + Win32 (the ReShade addon has no ARM64 configuration) and does not build ARM64 dependencies locally
+
+---
 
 ### 2026/09/12
 
