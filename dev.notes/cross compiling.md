@@ -50,8 +50,8 @@ export PATH=$WINDOWS_SDK_PATH/bin/x64:$PATH
 ./third-party/common/linux/premake/premake5 --file=premake5.lua --genproto --os=windows vs2026
 
 cd build/project/vs2026/win
-/opt/msvc/bin/x86/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=Win32' gbe.slnx
-/opt/msvc/bin/x64/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=x64' gbe.slnx
+/opt/msvc/bin/x86/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=Win32' gse.slnx
+/opt/msvc/bin/x64/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=x64' gse.slnx
 ```
 
 See [the ci](./.github/workflows/emu-build-all-win-cross.yml) for more details.

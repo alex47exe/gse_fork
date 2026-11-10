@@ -63,10 +63,10 @@ jobs:
           ./third-party/common/linux/premake/premake5 --file=premake5.lua --genproto --os=windows vs2026 || true
 
           cd build/project/vs2026/win
-          /opt/msvc/bin/x86/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=Win32' gbe.slnx || echo "MSBuild x86 failed (exit $?)"
+          /opt/msvc/bin/x86/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=Win32' gse.slnx || echo "MSBuild x86 failed (exit $?)"
 
           echo "BUILDING X64"
-          /opt/msvc/bin/x64/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=x64' gbe.slnx || echo "MSBuild x64 failed (exit $?)"
+          /opt/msvc/bin/x64/msbuild '/nologo' '/v:n' '/p:Configuration=release,Platform=x64' gse.slnx || echo "MSBuild x64 failed (exit $?)"
           EOF
 
       - name: Upload artifact/s
