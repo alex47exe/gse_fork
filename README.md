@@ -74,7 +74,7 @@ Tools bundled in this repository:
 
 ### For Windows:
 * You need Windows 10 or 8.1 + WDK
-* Using Visual Studio, install `Visual Studio 2022 Community`: https://visualstudio.microsoft.com/vs/community/
+* Using Visual Studio, install `Visual Studio 2026 Community`: https://visualstudio.microsoft.com/vs/community/
    * Select the Workload `Desktop development with C++`
    * In the `Individual components` scroll to the bottom and select the **latest** version of `Windows XX SDK (XX.X...)`  
       For example `Windows 11 SDK (10.0.22621.0)`
@@ -166,12 +166,12 @@ Open CMD in the repo folder, then run the following
     * To build 64-bit binaries (`UCRT64` or `MINGW64`)
     ```shell
     export CMAKE_GENERATOR="MSYS Makefiles"
-    ./third-party/common/win/premake/premake5.exe --file=premake5-deps.lua --64-build --all-ext --all-build --verbose   --os=windows gmake2
+    ./third-party/common/win/premake/premake5.exe --file=premake5-deps.lua --64-build --all-ext --all-build --verbose   --os=windows gmake
     ```
     * To build 32-bit binaries (`MINGW32`)
     ```shell
     export CMAKE_GENERATOR="MSYS Makefiles"
-    ./third-party/common/win/premake/premake5.exe --file=premake5-deps.lua --32-build --all-ext --all-build --verbose   --os=windows gmake2
+    ./third-party/common/win/premake/premake5.exe --file=premake5-deps.lua --32-build --all-ext --all-build --verbose   --os=windows gmake
     ```
   
   </details> 
@@ -201,11 +201,11 @@ This will:
 ## **Building the emu**
 ### On Windows:
 Open CMD in the repo folder, then run the following
-* For `Visual Studio 2022`
+* For `Visual Studio 2026`
   ```batch
   third-party\common\win\premake\premake5.exe --file=premake5.lua --genproto --os=windows vs2026
   ```
-  You can then go to the folder `build\project\vs2026\win` and open the produced `.sln` file in Visual Studio.
+  You can then go to the folder `build\project\vs2026\win` and open the produced `.slnx` file in Visual Studio.
   Or, if you prefer to do it from command line, open the `Developer Command Prompt for VS 2026` inside the above folder, then:
   ```batch
   msbuild /nologo /v:n /p:Configuration=release,Platform=Win32 gse.slnx
@@ -218,9 +218,9 @@ Open CMD in the repo folder, then run the following
     <summary>steps</summary>
   
     ```shell
-    ./third-party/common/win/premake/premake5.exe --file=premake5.lua --genproto --os=windows gmake2
+    ./third-party/common/win/premake/premake5.exe --file=premake5.lua --genproto --os=windows gmake
   
-    cd ./build/project/gmake2/win
+    cd ./build/project/gmake/win
     ```
     *(Optional)* You can use `Clang` compiler instead of `GCC` by running these 2 commands in the current terminal instance
     ```shell
@@ -253,7 +253,9 @@ An example script `build_win_premake.bat` is available, check it out
 Open a terminal in the repo folder, then run the following
 ```shell
 ./third-party/common/linux/premake/premake5 --file=premake5.lua --genproto --os=linux gmake2
-cd ./build/project/gmake2/linux
+# premake 5.0.0-beta8 maps the 'gmake2' alias to the gmake generator, so the
+# generated files land in build/project/gmake/linux
+cd ./build/project/gmake/linux
 ```
 *(Optional)* You can use `Clang` compiler instead of `GCC` by running these 2 commands in the current terminal instance
 ```shell
@@ -274,6 +276,14 @@ make help
 This will build a release version of the emu in the folder `build/linux/<toolchain>/release`
 An example script `build_linux_premake.sh` is available, check it out
 
+On Linux the supported generator is `gmake2` (GNU Make). In the bundled premake 5.0.0-beta8 the
+`gmake2` generator was folded into `gmake` - `gmake2` is kept as a deprecated alias, `_ACTION`
+resolves to `gmake`, and the output goes to `build/project/gmake/` (the old generator is now
+`gmakelegacy`). `ninja` and `codelite` generate files too, but `premake5.lua` only configures
+compiler/linker flags for `action:gmake*` (`-fno-jump-tables`, `-Wno-switch`, `-fno-char8_t`,
+`-Wl,--exclude-libs,ALL`, the `lib` prefix and `:static` link suffix, and the MinGW extras), so
+those generators produce files that do not build correctly.
+
 ---
 
 ## **Using Github CI as a builder**
@@ -291,9 +301,9 @@ In your fork, open the `Settings` tab from the top, then:
 
 ### Manual trigger
 1. Go to the `Actions` tab in your fork
-2. Select the emu dependencies Workflow (ex: `Emu deps (Windows, VS2026, x64/Win32)`) and run it on the **main** branch (ex: `dev`).
+2. Select the emu dependencies Workflow (ex: `Emu deps (Windows, VS2026, x64/x86)`) and run it on the **main** branch (ex: `dev`).
    Dependencies not created on the main branch won't be recognized by other branches or subsequent runs
-3. Select one of the Workflow scripts from the left side panel, for example `Build emu (Windows, VS2026, x64/Win32)`
+3. Select one of the Workflow scripts from the left side panel, for example `Build emu (Windows, VS2026, x64/x86)`
 3. On the top-right, select `Run workflow` -> select the desired branch (for example `dev`) -> press the button `Run workflow`
 4. When it's done, many packages (called build artifacts) will be created for that workflow.
    Make sure to select the workflow again to view its history, then select the last run at the very top to view its artifacts
@@ -335,5 +345,5 @@ Open bash terminal in the repos's directory, then run this script
 ```shell
 package_linux.sh <build_folder>
 ```
-`build_folder` is any folder inside `build/linux`, for example: `gmake2/release`
+`build_folder` is any folder inside `build/linux`, for example: `gmake/release`
 The above example will create a compressed `.tar` archive inside `build/package/linux/`

@@ -1,4 +1,4 @@
-name: "Emu deps (Windows, VS2026, x64/Win32)"
+name: "Emu deps (Windows, VS2026, x64/x86)"
 
 on:
   workflow_call:

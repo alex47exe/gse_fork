@@ -1,4 +1,4 @@
-name: "Build emu (Windows, VS2026, x64/Win32)"
+name: "Build emu (Windows, VS2026, x64/x86)"
 
 on:
   workflow_call:
@@ -293,7 +293,7 @@ jobs:
         run: |
           msbuild /nologo /target:${{ matrix.prj }} /m:1 -p:CL_MPCount=${{ env.MAX_PARALLEL_JOBS }} /v:n /p:Configuration=${{ matrix.cfg }},Platform=x64 gse.slnx
 
-      - name: "Build Win32"
+      - name: "Build x86"
         shell: "cmd"
         working-directory: "${{ github.workspace }}/build/project/vs2026/win"
         run: |

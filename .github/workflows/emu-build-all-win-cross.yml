@@ -1,4 +1,4 @@
-name: "Build emu (Windows from Linux, MSVC cross, x64/Win32)"
+name: "Build emu (Windows from Linux, MSVC cross, x64/x86)"
 
 # There's || being used here and there because on github actions
 # it thinks those are fatal
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: "Build Windows, MSVC cross on Linux, x64/Win32"
+    name: "Build Windows, MSVC cross on Linux, x64/x86"
     runs-on: ubuntu-latest
 
     container:

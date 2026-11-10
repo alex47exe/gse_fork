@@ -56,7 +56,11 @@ if [[ $GEN_PROJECT = 1 ]]; then
   }
 fi
 
-pushd ./"build/project/gmake2/linux"
+# premake 5.0.0-beta8 folded the gmake2 generator into gmake, so the 'gmake2'
+# alias writes to build/project/gmake; older premake versions write gmake2
+proj_dir="./build/project/gmake2/linux"
+[[ -d "$proj_dir" ]] || proj_dir="./build/project/gmake/linux"
+pushd "$proj_dir"
 
 # you can select individual or all
 

@@ -20,21 +20,21 @@ permissions:
 
 jobs:
   emu-win-all:
-    name: "Windows, VS2026, x64/Win32"
+    name: "Windows, VS2026, x64/x86"
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-build-all-win.yml"
 
   emu-win-all-vs22:
-    name: "Windows, VS2022, x64/Win32"
+    name: "Windows, VS2022, x64/x86"
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-build-all-win-vs22.yml"
 
   emu-linux-all:
-    name: "Linux, gmake, x64/x86"
+    name: "Linux, gmake2, x64/x86"
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-build-all-linux.yml"
 
   emu-linux-all-arm:
-    name: "Linux, gmake, ARM64"
+    name: "Linux, gmake2, ARM64"
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-build-all-linux-arm.yml"

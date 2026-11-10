@@ -1,4 +1,4 @@
-name: "Emu deps (Linux, gmake, x64/x86)"
+name: "Emu deps (Linux, gmake2, x64/x86)"
 
 on:
   workflow_call:
@@ -99,6 +99,8 @@ permissions:
   actions: "write"
 
 env:
+  # premake 5.0.0-beta8 resolves the 'gmake2' action to 'gmake', which is also the
+  # directory name it writes to (build/deps/linux/gmake)
   PREMAKE_ACTION: "gmake"
   DEPS_CACHE_KEY: "emu-deps-linux"
   DEPS_CACHE_DIR: "build/deps/linux"
@@ -218,7 +220,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-ssq --build-ssq --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-ssq --build-ssq --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build zlib"
         if: steps.needs-build.outputs.build_zlib == 'true'
@@ -226,7 +228,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-zlib --build-zlib --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-zlib --build-zlib --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build mbedtls"
         if: steps.needs-build.outputs.build_mbedtls == 'true'
@@ -234,7 +236,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-mbedtls --build-mbedtls --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-mbedtls --build-mbedtls --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build curl"
         if: |
@@ -245,7 +247,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-curl --build-curl --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-curl --build-curl --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build protobuf"
         if: |
@@ -255,7 +257,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-protobuf --build-protobuf --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-protobuf --build-protobuf --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build ingame_overlay"
         if: steps.needs-build.outputs.build_ingame_overlay == 'true'
@@ -263,7 +265,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-ingame_overlay --build-ingame_overlay --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-ingame_overlay --build-ingame_overlay --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build opus"
         if: steps.needs-build.outputs.build_opus == 'true'
@@ -271,7 +273,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-opus --build-opus --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-opus --build-opus --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build portaudio"
         if: steps.needs-build.outputs.build_portaudio == 'true'
@@ -279,7 +281,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-portaudio --build-portaudio --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-portaudio --build-portaudio --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Build sdl"
         if: steps.needs-build.outputs.build_sdl == 'true'
@@ -287,7 +289,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           export CMAKE_GENERATOR="Unix Makefiles"
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-sdl --build-sdl --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5-deps.lua --ext-sdl --build-sdl --64-build --32-build --j=${{ env.MAX_PARALLEL_JOBS }} --verbose --clean --os=linux gmake2
 
       - name: "Delete existing combined deps cache"
         if: steps.needs-build.outputs.needed == 'true'

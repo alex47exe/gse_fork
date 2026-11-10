@@ -1,4 +1,4 @@
-name: "Build emu (Linux, gmake, x64/x86)"
+name: "Build emu (Linux, gmake2, x64/x86)"
 
 on:
   workflow_call:
@@ -99,6 +99,8 @@ permissions:
   actions: "write"
 
 env:
+  # premake 5.0.0-beta8 resolves the 'gmake2' action to 'gmake', which is also the
+  # directory name it writes to (build/project/gmake, build/deps/linux/gmake)
   PREMAKE_ACTION: "gmake"
   DEPS_CACHE_KEY: "emu-deps-linux"
   DEPS_CACHE_DIR: "build/deps/linux"
@@ -162,7 +164,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           sudo chmod 777 ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto_only --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto_only --os=linux gmake2
 
       - name: "Upload proto_gen artifact"
         uses: actions/upload-artifact@v7
@@ -268,7 +270,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           sudo chmod 777 ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto_only --emubuild=${{ steps.build_ref.outputs.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto_only --emubuild=${{ steps.build_ref.outputs.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --os=linux gmake2
 
       - name: "Download proto files artifact (fallback)"
         if: steps.gen_proto_attempt.outcome == 'failure'
@@ -282,7 +284,7 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           sudo chmod 777 ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --emubuild=${{ steps.build_ref.outputs.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --emubuild=${{ steps.build_ref.outputs.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --os=linux gmake2
 
       # build target
       - name: "Build x64"
