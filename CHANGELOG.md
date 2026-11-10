@@ -29,7 +29,7 @@ range: `e4035e0..bd4d990` — 48 commits (39 non-merge)
 
 ### 2026/10/18
 
-* **[Detanup01]** overlay: the ingame_overlay archive was updated to Nemirtingas `4ec39d4` (2026/04/30), which is **older** than the one this fork ships (`eb06380`, 2026/08/08, plus local patches), so it is deliberately not adopted; this is why upstream's `steam_overlay.cpp` uses the old `std::future<RendererHook_t*> DetectRenderer(...)` API while ours uses the newer `bool DetectRenderer(bool restart, ...)`
+* **[Detanup01]** overlay: the ingame_overlay archive was regenerated from Nemirtingas **master `e94e301`** (2026/09/30). Its `SOURCE.txt` still names the older `4ec39d4`, but the shipped content matches `e94e301` file for file (verified by comparing every source file against both commits)
 * **[Detanup01]** overlay: linux arm support, and a Windows ARM64 build that only runs from a called workflow
 * **[Detanup01]** ci: new `emu-build-all-win-arm`, `emu-build-all-linux-arm`, `emu-deps-win-arm` and `emu-deps-linux-arm` workflows; fix the linux arm release
 * **[Detanup01]** build: fix the linux build, print the detected OS
@@ -100,7 +100,8 @@ range: `e4035e0..bd4d990` — 48 commits (39 non-merge)
 
 ### 2026/11/09
 
-* **[alex47exe]** build: upstream's overlay archive (`third-party/deps/common`) is **not** taken — it is based on Nemirtingas `4ec39d4` (2026/04/30) while this fork ships `eb06380` (2026/08/08) plus local patches (RGBA16F/HDR uploads, sRGB swapchain detection, OpenGL hook hang fix, `GetDXGISwapChain()` on `RendererHook_t`), so taking upstream's would be a downgrade that also reverts ImGui 1.92.9; the stateful renderer detector stays
+* **[alex47exe]** overlay: the ingame_overlay dependency was rebased onto Nemirtingas **master `e94e301`**, the same base `Detanup01/gbe_fork` ships, replacing the older `eb06380` base. Every local fix was re-applied on top: RGBA16F texture uploads (DX9/DX10/DX11/DX12/OpenGL/Vulkan), sRGB swapchain reporting, `RendererHook_t::SupportsPixelFormat()`, the explicit-format `AttachResource` overload and the DX12 `D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT` placement. The archive was regenerated, every modified file keeps its pristine `.ORG` copy, and `SOURCE.txt` now records base + version + the full change list. The upstream version also brings `src/Library.cpp`, `src/OSDetector.h`, `src/StringUtils.h`, `src/Linux/SafeXlibDisplay.*` and the ImGui XCB backend
+* **[alex47exe]** overlay: no superproject change was needed for the rebase — `DetectRenderer`'s implementation is byte-identical between the two bases (only its doc comment was corrected upstream), and ImGui stays at 1.92.9
 * **[alex47exe]** ci: upstream's ARM64 release jobs were ported as an opt-in `build_arm` input (`release.yml`), off by default because the overlay dependencies have not been built for ARM64 yet
 * **[alex47exe]** build: `build_win_premake.bat` keeps building only x64 + Win32 (the ReShade addon has no ARM64 configuration) and does not build ARM64 dependencies locally
 
