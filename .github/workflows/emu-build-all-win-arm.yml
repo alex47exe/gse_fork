@@ -25,9 +25,55 @@ jobs:
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-deps-win-arm.yml"
 
+  gen-proto:
+    name: "Generate proto files - *.pb.cc, *.pb.h"
+    needs: ["deps"]
+    runs-on: "windows-11-vs2026-arm"
+    if: ${{ !cancelled() }}
+
+    steps:
+      # on Windows Git will auto change line ending to CRLF, not preferable
+      - name: "Ensure LF line ending"
+        shell: "cmd"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          git config --system core.autocrlf false
+          git config --global core.autocrlf false
+
+      - name: "Checkout branch"
+        uses: actions/checkout@v6
+
+      - name: "Restore deps"
+        uses: actions/cache/restore@v5
+        with:
+          key: "${{ env.DEPS_CACHE_KEY }}-${{ env.PREMAKE_ACTION }}"
+          path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
+
+      - name: "Clone third-party build helpers (common/win)"
+        uses: actions/checkout@v6
+        with:
+          ref: "third-party/common/win"
+          path: "${{env.THIRD_PARTY_BASE_DIR}}/common/win"
+
+      - name: "Generate proto files"
+        continue-on-error: true
+        shell: "cmd"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto_only --os=windows vs2026
+
+      - name: "Upload proto_gen artifact"
+        uses: actions/upload-artifact@v7
+        with:
+          name: "proto-gen-win-arm-${{ env.PREMAKE_ACTION }}-${{ github.sha }}"
+          path: "proto_gen/win"
+          if-no-files-found: "warn"
+          retention-days: 1
+          overwrite: true
+
   builds-matrix-win:
     name: "build"
-    needs: ["deps"]
+    needs: ["deps", "gen-proto"]
     runs-on: "windows-11-vs2026-arm"
     if: ${{ !cancelled() }}
     continue-on-error: true
@@ -93,11 +139,30 @@ jobs:
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
       # generate project files
+      - name: "Set build date"
+        shell: "bash"
+        run: echo "EMU_BUILD_DATE=$(date +%Y_%m_%d)" >> $GITHUB_ENV
+
+      - name: "Generate proto files - *.pb.cc, *.pb.h"
+        id: "gen_proto_attempt"
+        continue-on-error: true
+        shell: "cmd"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto_only --emubuild=${{ github.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --dosstub --winrsrc --winsign --os=windows vs2026
+
+      - name: "Download proto files artifact (fallback)"
+        if: steps.gen_proto_attempt.outcome == 'failure'
+        uses: actions/download-artifact@v8
+        with:
+          name: "proto-gen-win-arm-${{ env.PREMAKE_ACTION }}-${{ github.sha }}"
+          path: "proto_gen/win"
+
       - name: "Generate project files"
         shell: "cmd"
         working-directory: "${{ github.workspace }}"
         run: |
-          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2026
+          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --emubuild=${{ github.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --dosstub --winrsrc --winsign --os=windows vs2026
 
       # build target
       - name: "Build target"

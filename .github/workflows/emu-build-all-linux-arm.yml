@@ -26,9 +26,48 @@ jobs:
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-deps-linux-arm.yml"
 
+  gen-proto:
+    name: "Generate proto files - *.pb.cc, *.pb.h"
+    needs: ["deps"]
+    runs-on: "ubuntu-24.04-arm"
+    if: ${{ !cancelled() }}
+
+    steps:
+      - name: "Checkout branch"
+        uses: actions/checkout@v6
+
+      - name: "Restore deps"
+        uses: actions/cache/restore@v5
+        with:
+          key: "${{ env.DEPS_CACHE_KEY }}-${{ env.PREMAKE_ACTION }}"
+          path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
+
+      - name: "Clone third-party build helpers (common/linux)"
+        uses: actions/checkout@v6
+        with:
+          ref: "third-party/common/linux"
+          path: "${{env.THIRD_PARTY_BASE_DIR}}/common/linux"
+
+      - name: "Generate proto files"
+        continue-on-error: true
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          sudo chmod 777 ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5 --file=premake5.lua --genproto_only --os=linux gmake
+
+      - name: "Upload proto_gen artifact"
+        uses: actions/upload-artifact@v7
+        with:
+          name: "proto-gen-linux-arm-${{ env.PREMAKE_ACTION }}-${{ github.sha }}"
+          path: "proto_gen/linux"
+          if-no-files-found: "warn"
+          retention-days: 1
+          overwrite: true
+
   builds-matrix-linux:
     name: "build"
-    needs: ["deps"]
+    needs: ["deps", "gen-proto"]
     runs-on: "ubuntu-24.04-arm"
     if: ${{ !cancelled() }}
     continue-on-error: true
@@ -86,12 +125,32 @@ jobs:
         run: sudo chmod -R 777 "${{ github.workspace }}"
 
       # generate project files
+      - name: "Set build date"
+        shell: "bash"
+        run: echo "EMU_BUILD_DATE=$(date +%Y_%m_%d)" >> $GITHUB_ENV
+
+      - name: "Generate proto files - *.pb.cc, *.pb.h"
+        id: "gen_proto_attempt"
+        continue-on-error: true
+        shell: "bash"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          sudo chmod 777 ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5 --file=premake5.lua --genproto_only --emubuild=${{ github.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --os=linux gmake
+
+      - name: "Download proto files artifact (fallback)"
+        if: steps.gen_proto_attempt.outcome == 'failure'
+        uses: actions/download-artifact@v8
+        with:
+          name: "proto-gen-linux-arm-${{ env.PREMAKE_ACTION }}-${{ github.sha }}"
+          path: "proto_gen/linux"
+
       - name: "Generate project files"
         shell: "bash"
         working-directory: "${{ github.workspace }}"
         run: |
           sudo chmod 777 ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5 --file=premake5.lua --genproto --emubuild=${{ github.sha }} --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake-arm/premake5 --file=premake5.lua --emubuild=${{ github.sha }} --emubuilddate=${{ env.EMU_BUILD_DATE }} --os=linux gmake
 
       # mandatory Linux packages
       - name: "Install required packages"
