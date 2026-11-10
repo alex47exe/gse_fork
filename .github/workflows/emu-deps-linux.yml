@@ -1,4 +1,4 @@
-name: "Emu third-party dependencies (Linux)"
+name: "Emu deps (Linux, gmake, x64/x86)"
 
 on:
   workflow_call:

@@ -71,7 +71,7 @@ env:
 
 jobs:
   emu-win-all-vs2026:
-    name: "Emu win all (VS2026)"
+    name: "Build Windows, VS2026, x64/Win32"
     if: ${{ !cancelled() && (inputs.vs_version == '' || inputs.vs_version == 'vs2026') }}
     uses: "./.github/workflows/emu-build-all-win.yml"
     with:
@@ -88,7 +88,7 @@ jobs:
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
 
   emu-win-all-vs22:
-    name: "Emu win all (VS2022)"
+    name: "Build Windows, VS2022, x64/Win32"
     if: ${{ !cancelled() && inputs.vs_version == 'vs2022' }}
     uses: "./.github/workflows/emu-build-all-win-vs22.yml"
     with:
@@ -105,6 +105,7 @@ jobs:
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
 
   emu-win-prep:
+    name: "Package Windows, VS2026, x64/Win32"
     needs: ["emu-win-all-vs2026", "emu-win-all-vs22"]
     if: ${{ !cancelled() }}
     runs-on: "windows-2025-vs2026"
@@ -215,7 +216,7 @@ jobs:
           done
 
   emu-linux-all:
-    name: "Emu linux all"
+    name: "Build Linux, gmake, x64/x86"
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-build-all-linux.yml"
     with:
@@ -232,6 +233,7 @@ jobs:
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
 
   emu-linux-prep:
+    name: "Package Linux, gmake, x64/x86"
     needs: ["emu-linux-all"]
     runs-on: "ubuntu-24.04"
     steps:
@@ -347,11 +349,12 @@ jobs:
   # ---------------------------------------------------------------------------
 
   emu-win-arm-all:
-    name: "Emu win arm all"
+    name: "Build Windows, VS2026, ARM64"
     if: ${{ !cancelled() && inputs.build_arm }}
     uses: "./.github/workflows/emu-build-all-win-arm.yml"
 
   emu-win-arm-prep:
+    name: "Package Windows, VS2026, ARM64"
     needs: ["emu-win-arm-all"]
     if: ${{ !cancelled() && inputs.build_arm }}
     runs-on: "windows-11-vs2026-arm"
@@ -431,11 +434,12 @@ jobs:
           retention-days: 7
 
   emu-linux-arm-all:
-    name: "Emu linux arm all"
+    name: "Build Linux, gmake, ARM64"
     if: ${{ !cancelled() && inputs.build_arm }}
     uses: "./.github/workflows/emu-build-all-linux-arm.yml"
 
   emu-linux-arm-prep:
+    name: "Package Linux, gmake, ARM64"
     needs: ["emu-linux-arm-all"]
     if: ${{ !cancelled() && inputs.build_arm }}
     runs-on: "ubuntu-24.04-arm"

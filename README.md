@@ -291,9 +291,9 @@ In your fork, open the `Settings` tab from the top, then:
 
 ### Manual trigger
 1. Go to the `Actions` tab in your fork
-2. Select the emu dependencies Workflow (ex: `Emu third-party dependencies (Windows) `) and run it on the **main** branch (ex: `dev`).
+2. Select the emu dependencies Workflow (ex: `Emu deps (Windows, VS2026, x64/Win32)`) and run it on the **main** branch (ex: `dev`).
    Dependencies not created on the main branch won't be recognized by other branches or subsequent runs
-3. Select one of the Workflow scripts from the left side panel, for example `Build all emu variants (Windows)`
+3. Select one of the Workflow scripts from the left side panel, for example `Build emu (Windows, VS2026, x64/Win32)`
 3. On the top-right, select `Run workflow` -> select the desired branch (for example `dev`) -> press the button `Run workflow`
 4. When it's done, many packages (called build artifacts) will be created for that workflow.
    Make sure to select the workflow again to view its history, then select the last run at the very top to view its artifacts

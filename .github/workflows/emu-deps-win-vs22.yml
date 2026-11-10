@@ -1,4 +1,4 @@
-name: "Emu third-party dependencies (Windows - VS2022)"
+name: "Emu deps (Windows, VS2022, x64/Win32)"
 
 on:
   workflow_call:
