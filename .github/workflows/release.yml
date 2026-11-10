@@ -229,11 +229,12 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  # runs once, after every packaging leg, so a leg cannot delete artifacts that
-  # another leg still has to download
-  emu-win-cleanup:
-    name: "Clean up intermediate Windows artifacts"
-    needs: ["emu-win-prep"]
+  # One final job, so it waits for every packaging leg (Windows x64/x86, Windows ARM64,
+  # Linux x64/x86, Linux ARM64). Running it earlier would race with a leg that still
+  # has to download its build artifacts.
+  emu-cleanup:
+    name: "Clean up intermediate build artifacts"
+    needs: ["emu-win-prep", "emu-win-arm-prep", "emu-linux-prep", "emu-linux-arm-prep"]
     if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
     steps:
@@ -245,7 +246,7 @@ jobs:
         run: |
           repo="${{ github.repository }}"
           gh api "repos/${repo}/actions/runs/${{ github.run_id }}/artifacts" --paginate \
-            --jq '.artifacts[] | select(.name | test("^(emu-win-|proto-gen-win-)")) | .id' | \
+            --jq '.artifacts[] | select(.name | test("^(emu-win-|emu-winarm-|emu-linux-|emu-linuxarm-|proto-gen-)")) | .id' | \
           while IFS= read -r artifact_id; do
             gh api -X DELETE "repos/${repo}/actions/artifacts/${artifact_id}" \
               && echo "Deleted artifact ${artifact_id}" \
@@ -362,22 +363,6 @@ jobs:
           compression-level: 0
           retention-days: 7
           overwrite: true
-
-      - name: "Delete intermediate build artifacts"
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        shell: "bash"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          repo="${{ github.repository }}"
-          gh api "repos/${repo}/actions/runs/${{ github.run_id }}/artifacts" --paginate \
-            --jq '.artifacts[] | select(.name | test("^(emu-linux-|proto-gen-linux-)")) | .id' | \
-          while IFS= read -r artifact_id; do
-            gh api -X DELETE "repos/${repo}/actions/artifacts/${artifact_id}" \
-              && echo "Deleted artifact ${artifact_id}" \
-              || echo "Failed to delete artifact ${artifact_id}"
-          done
 
   # ---------------------------------------------------------------------------
   # ARM64 variants, ported from upstream (gbe_fork).
