@@ -51,11 +51,12 @@ on:
         type: boolean
         default: false
       vs_version:
-        description: 'Visual Studio version to build with'
+        description: 'Visual Studio version to build with (vs2026, vs2022, or both)'
         type: choice
         options:
           - vs2026
           - vs2022
+          - both
         default: 'vs2026'
       build_arm:
         description: 'Also build the ARM64 variants (Windows + Linux)'
@@ -70,9 +71,29 @@ env:
   THIRD_PARTY_BASE_DIR: "third-party"
 
 jobs:
+  # windows_arm64 is VS2026-only: the arm deps are built with
+  # "--arm-build" + "Visual Studio 18 2026" and there is no windows-2022 arm runner.
+  emu-win-select:
+    name: "Select Windows toolchains"
+    runs-on: "ubuntu-latest"
+    if: ${{ !cancelled() }}
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - name: "Build toolchain matrix"
+        id: "pick"
+        shell: "bash"
+        run: |
+          case "${{ inputs.vs_version || 'vs2026' }}" in
+            both)   vers='["vs2026","vs2022"]' ;;
+            vs2022) vers='["vs2022"]' ;;
+            *)      vers='["vs2026"]' ;;
+          esac
+          echo "matrix=${vers}" >> $GITHUB_OUTPUT
+
   emu-win-all-vs2026:
     name: "Build Windows, VS2026, x64/Win32"
-    if: ${{ !cancelled() && (inputs.vs_version == '' || inputs.vs_version == 'vs2026') }}
+    if: ${{ !cancelled() && (inputs.vs_version == '' || inputs.vs_version == 'vs2026' || inputs.vs_version == 'both') }}
     uses: "./.github/workflows/emu-build-all-win.yml"
     with:
       branch: ${{ inputs.branch || 'dev' }}
@@ -89,7 +110,7 @@ jobs:
 
   emu-win-all-vs22:
     name: "Build Windows, VS2022, x64/Win32"
-    if: ${{ !cancelled() && inputs.vs_version == 'vs2022' }}
+    if: ${{ !cancelled() && (inputs.vs_version == 'vs2022' || inputs.vs_version == 'both') }}
     uses: "./.github/workflows/emu-build-all-win-vs22.yml"
     with:
       branch: ${{ inputs.branch || 'dev' }}
@@ -105,10 +126,16 @@ jobs:
       rebuild_sdl: ${{ inputs.rebuild_sdl || false }}
 
   emu-win-prep:
-    name: "Package Windows, VS2026, x64/Win32"
-    needs: ["emu-win-all-vs2026", "emu-win-all-vs22"]
+    name: "Package Windows, ${{ matrix.ver }}, x64/Win32"
+    needs: ["emu-win-select", "emu-win-all-vs2026", "emu-win-all-vs22"]
     if: ${{ !cancelled() }}
     runs-on: "windows-2025-vs2026"
+    strategy:
+      fail-fast: false
+      # serialized: on tag pushes both legs upload assets to the same GitHub release
+      max-parallel: 1
+      matrix:
+        ver: ${{ fromJSON(needs.emu-win-select.outputs.matrix) }}
     steps:
       # we need branch because it has package scripts
       - name: "Checkout branch"
@@ -136,18 +163,12 @@ jobs:
           ref: "third-party/deps/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
 
-      # determine VS version used for this run
-      - name: "Set VS version"
-        id: "vs_ver"
-        shell: "bash"
-        run: echo "ver=${{ inputs.vs_version || 'vs2026' }}" >> $GITHUB_OUTPUT
-
       # download artifacts
       - name: "Download emu build artifacts (Win)"
         uses: actions/download-artifact@v8
         with:
           path: "build/win"
-          pattern: "emu-win-*-${{ steps.build_ref.outputs.sha }}"
+          pattern: "emu-win-${{ matrix.ver }}-*-${{ steps.build_ref.outputs.sha }}"
           merge-multiple: true
 
       # print files
@@ -161,28 +182,37 @@ jobs:
       - name: "Package build (release)"
         shell: "cmd"
         working-directory: "${{ github.workspace }}"
-        run: package_win.bat ${{ steps.vs_ver.outputs.ver }}\release
+        run: package_win.bat ${{ matrix.ver }}\release
 
       # package (debug mode)
       - name: "Package build (debug)"
         shell: "cmd"
         working-directory: "${{ github.workspace }}"
-        run: package_win.bat ${{ steps.vs_ver.outputs.ver }}\debug 1
+        run: package_win.bat ${{ matrix.ver }}\debug 1
+
+      # the vs2026 and vs2022 archives would otherwise share the same asset name
+      - name: "Rename packages"
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: "cmd"
+        working-directory: "build/package/win/${{ matrix.ver }}"
+        run: |
+          ren emu-win-debug.7z emu-win-debug-${{ matrix.ver }}.7z
+          ren emu-win-release.7z emu-win-release-${{ matrix.ver }}.7z
 
       # release (debug + release modes) if this is a tag push
       - name: "Release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
-          files: "build/package/win/**/*"
+          files: "build/package/win/${{ matrix.ver }}/**/*"
 
       # upload artifacts/packages if this is a manual run
       - name: "Upload release package"
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v7
         with:
-          name: "release-emu-win-release-${{ steps.build_ref.outputs.sha }}"
-          path: "build/package/win/${{ steps.vs_ver.outputs.ver }}/*release*"
+          name: "release-emu-win-${{ matrix.ver }}-release-${{ steps.build_ref.outputs.sha }}"
+          path: "build/package/win/${{ matrix.ver }}/*release*"
           if-no-files-found: "error"
           compression-level: 0
           retention-days: 7
@@ -192,15 +222,22 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v7
         with:
-          name: "release-emu-win-debug-${{ steps.build_ref.outputs.sha }}"
-          path: "build/package/win/${{ steps.vs_ver.outputs.ver }}/*debug*"
+          name: "release-emu-win-${{ matrix.ver }}-debug-${{ steps.build_ref.outputs.sha }}"
+          path: "build/package/win/${{ matrix.ver }}/*debug*"
           if-no-files-found: "error"
           compression-level: 0
           retention-days: 7
           overwrite: true
 
+  # runs once, after every packaging leg, so a leg cannot delete artifacts that
+  # another leg still has to download
+  emu-win-cleanup:
+    name: "Clean up intermediate Windows artifacts"
+    needs: ["emu-win-prep"]
+    if: ${{ !cancelled() }}
+    runs-on: "ubuntu-latest"
+    steps:
       - name: "Delete intermediate build artifacts"
-        if: ${{ !cancelled() }}
         continue-on-error: true
         shell: "bash"
         env:

@@ -298,6 +298,12 @@ In your fork, open the `Settings` tab from the top, then:
 4. When it's done, many packages (called build artifacts) will be created for that workflow.
    Make sure to select the workflow again to view its history, then select the last run at the very top to view its artifacts
 
+The `Prepare release` workflow has a `vs_version` input to pick which Windows toolchain to build:
+`vs2026` (default), `vs2022`, or `both`. With `both`, each toolchain is packaged separately and the
+release assets are suffixed with the toolchain (`emu-win-release-vs2026.7z`, `emu-win-release-vs2022.7z`).
+Windows ARM64 is **VS2026-only**: it runs on the `windows-11-vs2026-arm` runner and its dependencies are
+built with `--arm-build` using the `Visual Studio 18 2026` generator, which the VS2022 pipeline does not provide.
+
 <br/>
 
 Important note:
